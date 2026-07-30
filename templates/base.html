@@ -4,11 +4,12 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>{% block title %}PvPMod{% endblock %}</title>
+  <link rel="icon" href="{{ url_for('static', filename='img/logo.png') }}" type="image/png">
   <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
 </head>
 <body>
   <header>
-    <a href="{{ url_for('index') }}" class="logo">⚔ PvPMod</a>
+    <a href="{{ url_for('index') }}" class="logo"><img src="{{ url_for('static', filename='img/logo.png') }}" alt="PvPMod"> PvPMod</a>
     <nav>
       <a href="{{ url_for('index') }}#features">Возможности</a>
       <a href="{{ url_for('index') }}#pricing">Цены</a>
