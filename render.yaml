@@ -1,0 +1,16 @@
+services:
+  - type: web
+    name: pvpmod-site
+    env: python
+    plan: free
+    buildCommand: "pip install -r requirements.txt"
+    startCommand: "gunicorn app:app"
+    envVars:
+      - key: SECRET_KEY
+        generateValue: true
+      - key: ADMIN_KEY
+        sync: false
+      - key: LAUNCHER_URL
+        sync: false
+      - key: DATABASE_URL
+        sync: false
