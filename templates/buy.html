@@ -1,0 +1,19 @@
+{% extends "base.html" %}
+{% block title %}Оплата — PvPMod{% endblock %}
+{% block content %}
+
+<div class="form-card">
+  <h2>{{ plan.name }} — {{ plan.price }} ₽</h2>
+  <p style="color: var(--text-dim); font-size: 14px; text-align: center;">
+    Переведи {{ plan.price }} ₽ удобным способом (карта / СБП / крипта — укажи здесь свои реквизиты)
+    и напиши администратору свой логин <b>{{ user["username"] }}</b> для активации подписки.
+  </p>
+  <a href="https://t.me/твой_телеграм" class="btn" style="display:block; text-align:center; margin-top: 20px;">
+    Написать администратору
+  </a>
+  <div class="form-footer">
+    <a href="{{ url_for('index') }}#pricing">← Назад к тарифам</a>
+  </div>
+</div>
+
+{% endblock %}

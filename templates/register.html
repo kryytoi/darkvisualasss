@@ -1,0 +1,21 @@
+{% extends "base.html" %}
+{% block title %}Регистрация — PvPMod{% endblock %}
+{% block content %}
+
+<div class="form-card">
+  <h2>Регистрация</h2>
+  <form method="POST" action="{{ url_for('register') }}">
+    <label for="username">Логин</label>
+    <input type="text" id="username" name="username" required minlength="3">
+
+    <label for="password">Пароль</label>
+    <input type="password" id="password" name="password" required minlength="4">
+
+    <button type="submit" class="btn">Зарегистрироваться</button>
+  </form>
+  <div class="form-footer">
+    Уже есть аккаунт? <a href="{{ url_for('login') }}">Войти</a>
+  </div>
+</div>
+
+{% endblock %}

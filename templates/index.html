@@ -1,0 +1,55 @@
+{% extends "base.html" %}
+{% block title %}PvPMod — мод для PvP и визуальных эффектов{% endblock %}
+{% block content %}
+
+<section class="hero">
+  <h1>PvPMod для Fabric 1.21.4</h1>
+  <p>Улучшает твою реакцию в PvP и добавляет крутые визуальные эффекты, не ломая производительность сервера.</p>
+  {% if user %}
+    <a href="{{ url_for('profile') }}" class="btn">Перейти в профиль</a>
+  {% else %}
+    <a href="{{ url_for('register') }}" class="btn">Начать</a>
+  {% endif %}
+</section>
+
+<section id="features">
+  <h2>Возможности</h2>
+  <div class="features">
+    <div class="feature-card">
+      <h3>⚔ PvP-ассистент</h3>
+      <p>Подсказки по таймингу удара, отображение крит-урона и полезные визуальные индикаторы во время боя.</p>
+    </div>
+    <div class="feature-card">
+      <h3>✨ Визуальные эффекты</h3>
+      <p>Частицы, трейлы и подсветка попаданий — делает бои эффектнее без падения FPS.</p>
+    </div>
+    <div class="feature-card">
+      <h3>🛡 Безопасность</h3>
+      <p>Не использует читерские механики (авто-клик, kill-aura) — только честные визуальные улучшения.</p>
+    </div>
+    <div class="feature-card">
+      <h3>⚙ Fabric 1.21.4</h3>
+      <p>Полная поддержка последней версии Fabric, лёгкий вес, простая установка через лаунчер.</p>
+    </div>
+  </div>
+</section>
+
+<section id="pricing">
+  <h2>💲 Прайс-лист 💲</h2>
+  <div class="pricing">
+    {% for key, plan in plans.items() %}
+      <div class="plan-card {% if key == '120' %}highlight{% endif %}">
+        {% if key == '120' %}<span class="badge">Популярно</span>{% endif %}
+        <h3>{{ plan.name }}</h3>
+        <div class="price">{{ plan.price }} ₽</div>
+        {% if user %}
+          <a href="{{ url_for('buy', plan_key=key) }}" class="btn">Купить</a>
+        {% else %}
+          <a href="{{ url_for('register') }}" class="btn">Купить</a>
+        {% endif %}
+      </div>
+    {% endfor %}
+  </div>
+</section>
+
+{% endblock %}

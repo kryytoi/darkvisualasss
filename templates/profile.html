@@ -1,0 +1,32 @@
+{% extends "base.html" %}
+{% block title %}Профиль — PvPMod{% endblock %}
+{% block content %}
+
+<div class="profile-card">
+  <h2>Привет, {{ user["username"] }} 👋</h2>
+
+  {% if status == "active" %}
+    <div class="status-pill active">Подписка активна</div>
+    <p>Истекает: {{ expires.strftime("%d.%m.%Y %H:%M") }} (UTC)</p>
+  {% elif status == "forever" %}
+    <div class="status-pill forever">Подписка навсегда ♾️</div>
+  {% elif status == "expired" %}
+    <div class="status-pill expired">Подписка истекла</div>
+    <p>Истекла: {{ expires.strftime("%d.%m.%Y %H:%M") }} (UTC)</p>
+  {% else %}
+    <div class="status-pill none">Нет активной подписки</div>
+  {% endif %}
+
+  <div style="margin-top: 24px;">
+    {% if status in ["active", "forever"] %}
+      <a href="{{ launcher_url }}" class="btn">⬇ Скачать лаунчер</a>
+    {% else %}
+      <p style="color: var(--text-dim); font-size: 14px;">
+        Купи подписку, чтобы открыть скачивание лаунчера.
+      </p>
+      <a href="{{ url_for('index') }}#pricing" class="btn secondary">Посмотреть тарифы</a>
+    {% endif %}
+  </div>
+</div>
+
+{% endblock %}
