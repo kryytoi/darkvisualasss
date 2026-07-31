@@ -25,9 +25,6 @@ app.config["SESSION_COOKIE_HTTPONLY"] = True
 # ==========================================
 #  ТАРИФЫ (ДЛЯ ОТОБРАЖЕНИЯ НА ГЛАВНОЙ)
 # ==========================================
-# ==========================================
-#  ТАРИФЫ (ДЛЯ ОТОБРАЖЕНИЯ НА ГЛАВНОЙ)
-# ==========================================
 PLANS = {
     "1_month": {
         "name": "30 Дней",
@@ -36,8 +33,8 @@ PLANS = {
         "features": [
             "Полный доступ к Dark Visuals",
             "Автоматические обновления",
-            "Базовая поддержка"
-        ]
+            "Базовая поддержка",
+        ],
     },
     "120_days": {
         "name": "120 Дней",
@@ -46,8 +43,8 @@ PLANS = {
         "features": [
             "Полный доступ к Dark Visuals",
             "Приоритетные обновления",
-            "Быстрая поддержка"
-        ]
+            "Быстрая поддержка",
+        ],
     },
     "lifetime": {
         "name": "Навсегда",
@@ -56,14 +53,17 @@ PLANS = {
         "features": [
             "Вечный доступ без ограничений",
             "Приоритетные обновления",
-            "VIP Поддержка"
-        ]
-    }
+            "VIP Поддержка",
+        ],
+    },
 }
+
 # ==========================================
 #  НАСТРОЙКИ ДЛЯ КЛЮЧЕЙ МОДА (AES)
 # ==========================================
-MOD_AES_KEY_BASE64 = os.environ.get("MOD_AES_KEY_BASE64", "ZmFrZWtleWZvcmRlbW9uc3RyYXRpb24xMjM0NTY3ODk=")
+MOD_AES_KEY_BASE64 = os.environ.get(
+    "MOD_AES_KEY_BASE64", "ZmFrZWtleWZvcmRlbW9uc3RyYXRpb24xMjM0NTY3ODk="
+)
 MOD_AES_IV_BASE64 = os.environ.get("MOD_AES_IV_BASE64", "ZmFrZWl2Zm9yZGVtbzEyMw==")
 MOD_FILE_URL = os.environ.get(
     "MOD_FILE_URL",
@@ -120,7 +120,7 @@ def fetchall(db, query, params=()):
 def init_db():
     db = get_db()
     is_postgres = bool(os.environ.get("DATABASE_URL"))
-    
+
     if is_postgres:
         execute(
             db,
@@ -299,13 +299,12 @@ def index():
     return render_template("login.html", user=user)
 
 
-# ИСПРАВЛЕНИЕ: Добавлен отсутствующий маршрут для покупки
 @app.route("/buy/<plan_key>")
 def buy(plan_key):
     user = current_user()
     if not user:
         return redirect(url_for("login"))
-    
+
     plan = PLANS.get(plan_key)
     if not plan:
         flash("Выбран несуществующий тариф!", "error")
@@ -329,7 +328,7 @@ def login():
             session.permanent = True
             session["user_id"] = user["id"]
             return redirect(url_for("profile"))
-        
+
         flash("Неверный логин или пароль", "error")
     return render_template("login.html")
 
@@ -360,7 +359,7 @@ def register():
             """,
             (username, generate_password_hash(password), "User", "active", now),
         )
-        
+
         user = fetchone(db, "SELECT * FROM users WHERE username = %s", (username,))
         db.close()
 
@@ -389,7 +388,7 @@ def profile():
         "text": "Нет активной подписки",
         "days_left": 0
     }
-    
+
     expires_at = user.get("expires_at")
     if expires_at == "forever":
         sub_info = {"active": True, "text": "Навсегда (Forever)", "days_left": "∞"}
@@ -413,7 +412,7 @@ def profile():
 
 
 # ==========================================
-#  АДМИНКА
+#  АДМИНКА (ИСПРАВЛЕННАЯ ОБРАБОТКА ПОДПИСОК)
 # ==========================================
 
 @app.route("/admin")
@@ -436,7 +435,7 @@ def admin_create_user():
 
     username = request.form.get("username", "").strip()
     password = request.form.get("password", "")
-    days = request.form.get("days", "0")
+    days = str(request.form.get("days", "0")).strip().lower()
 
     if not username or not password:
         flash("Логин и пароль не могут быть пустыми!", "error")
@@ -452,7 +451,7 @@ def admin_create_user():
     now = datetime.utcnow()
     expires_at = None
 
-    if days == "forever":
+    if days in ["forever", "навсегда"]:
         expires_at = "forever"
     elif days.isdigit() and int(days) > 0:
         expires_at = (now + timedelta(days=int(days))).isoformat()
@@ -481,43 +480,73 @@ def admin_action():
     if not user or not user.get("is_admin"):
         return "Доступ запрещен", 403
 
-    target_id = request.form.get("user_id")
+    target_id = request.form.get("user_id") or request.form.get("id")
     action = request.form.get("action")
 
     if not target_id or not action:
+        flash("Ошибка: Не указан ID пользователя или действие!", "error")
         return redirect(url_for("admin_panel"))
 
     db = get_db()
 
+    try:
+        target_id = int(target_id)
+    except ValueError:
+        flash("Ошибка: Некорректный ID пользователя!", "error")
+        db.close()
+        return redirect(url_for("admin_panel"))
+
     if action == "ban":
         execute(db, "UPDATE users SET status = 'banned' WHERE id = %s", (target_id,))
+        flash("Пользователь заблокирован!", "success")
+
     elif action == "unban":
         execute(db, "UPDATE users SET status = 'active' WHERE id = %s", (target_id,))
+        flash("Пользователь разблокирован!", "success")
+
     elif action == "add_days":
-        days = int(request.form.get("days", 0))
-        target_user = fetchone(db, "SELECT expires_at FROM users WHERE id = %s", (target_id,))
-        if target_user:
-            cur_exp = target_user.get("expires_at")
+        raw_days = str(request.form.get("days") or request.form.get("sub_days") or "").strip().lower()
+
+        if raw_days in ["forever", "навсегда"]:
+            execute(
+                db,
+                "UPDATE users SET expires_at = 'forever', plan = 'Lifetime', status = 'active' WHERE id = %s",
+                (target_id,)
+            )
+            flash("Выдана вечная подписка (Forever)!", "success")
+
+        elif raw_days.isdigit() and int(raw_days) > 0:
+            days = int(raw_days)
+            target_user = fetchone(db, "SELECT expires_at FROM users WHERE id = %s", (target_id,))
             now = datetime.utcnow()
-            
+
+            cur_exp = target_user.get("expires_at") if target_user else None
             if not cur_exp or cur_exp == "forever":
                 base_time = now
             else:
                 try:
                     parsed = datetime.fromisoformat(cur_exp)
                     base_time = parsed if parsed > now else now
-                except ValueError:
+                except Exception:
                     base_time = now
-            
+
             new_exp = (base_time + timedelta(days=days)).isoformat()
             execute(
-                db, 
-                "UPDATE users SET expires_at = %s, plan = 'Active', status = 'active' WHERE id = %s", 
+                db,
+                "UPDATE users SET expires_at = %s, plan = 'Active', status = 'active' WHERE id = %s",
                 (new_exp, target_id)
             )
-            
+            flash(f"Подписка успешно продлена на {days} дн.!", "success")
+        else:
+            flash("Ошибка: Укажите число дней (например, 30 или 120)!", "error")
+
     elif action == "freeze":
         execute(db, "UPDATE users SET status = 'frozen' WHERE id = %s", (target_id,))
+        flash("Подписка заморожена!", "warning")
+
+    elif action == "reset_hwid":
+        execute(db, "UPDATE users SET hwid = NULL WHERE id = %s", (target_id,))
+        flash("HWID пользователя успешно сброшен!", "success")
 
     db.close()
     return redirect(url_for("admin_panel"))
@@ -525,4 +554,5 @@ def admin_action():
 
 if __name__ == "__main__":
     port = int(os.environ.get("PORT", 5000))
-    app.run(host="0.0.0.0", port=port, debug=True)
+    app.run(host="0.0.0.0", port=port, debug=True)ы
+                
