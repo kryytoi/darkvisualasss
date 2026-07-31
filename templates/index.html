@@ -2,9 +2,12 @@
 {% block title %}Dark Visuals — клиент визуалов для Fabric 1.21.4{% endblock %}
 {% block content %}
 
-<section class="hero">
+<!-- Глобальный фон со свечением -->
+<div class="global-purple-glow"></div>
+
+<section class="hero section">
   <div class="hero-badge reveal">Fabric 1.21.4 &middot; Клиент визуалов</div>
-  <h1 class="reveal">DARK<span class="accent">VISUALS</span></h1>
+  <h1 class="reveal text-glow">DARK<span class="accent">VISUALS</span></h1>
   <p class="hero-sub reveal">
     Улучшает твою реакцию в PvP и добавляет крутые визуальные эффекты,
     не ломая производительность сервера. Нажми <kbd>Right Shift</kbd> — и всё меню перед тобой.
@@ -18,10 +21,10 @@
     <a href="#showcase" class="btn btn-outline">Смотреть интерфейс</a>
   </div>
 
-  <div class="hero-shot tilt-card reveal" id="hero-shot">
-    <div class="shot-glow"></div>
+  <div class="hero-shot tilt-3d reveal" id="hero-shot">
+    <div class="glass-overlay"></div>
     <img src="{{ url_for('static', filename='img/menu.png') }}"
-         alt="Интерфейс Dark Visuals — меню модулей открывается на правый Shift" loading="eager">
+         alt="Интерфейс Dark Visuals" loading="eager">
     <div class="shot-caption"><kbd>Right Shift</kbd> — открыть меню визуалов</div>
   </div>
 </section>
@@ -32,7 +35,7 @@
     <h2>Всё, что нужно для красивого PvP</h2>
   </div>
   <div class="features">
-    <div class="feature-card tilt-card reveal">
+    <div class="feature-card tilt-3d reveal">
       <div class="feature-icon">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
           <path d="M14.5 3l6.5 6.5-2 2-1-1-8 8-3 1 1-3 8-8-1-1z"/><path d="M3 21l3-1"/>
@@ -41,7 +44,7 @@
       <h3>PvP-ассистент</h3>
       <p>Подсказки по таймингу удара, отображение крит-урона и полезные визуальные индикаторы во время боя.</p>
     </div>
-    <div class="feature-card tilt-card reveal">
+    <div class="feature-card tilt-3d reveal" style="transition-delay: 0.1s;">
       <div class="feature-icon">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
           <path d="M12 3l1.8 4.6L18 9.5l-4.2 1.9L12 16l-1.8-4.6L6 9.5l4.2-1.9L12 3z"/><path d="M19 14l.8 2 2 .8-2 .8-.8 2-.8-2-2-.8 2-.8.8-2z"/>
@@ -50,7 +53,7 @@
       <h3>Визуальные эффекты</h3>
       <p>ChinaHat, JumpCircle, Snow, трейлы и подсветка попаданий — бои эффектнее без падения FPS.</p>
     </div>
-    <div class="feature-card tilt-card reveal">
+    <div class="feature-card tilt-3d reveal" style="transition-delay: 0.2s;">
       <div class="feature-icon">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
           <path d="M12 3l7 3v5c0 4.5-3 8-7 10-4-2-7-5.5-7-10V6l7-3z"/>
@@ -59,7 +62,7 @@
       <h3>Безопасность</h3>
       <p>Не использует читерские механики (авто-клик, kill-aura) — только честные визуальные улучшения.</p>
     </div>
-    <div class="feature-card tilt-card reveal">
+    <div class="feature-card tilt-3d reveal" style="transition-delay: 0.3s;">
       <div class="feature-icon">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
           <rect x="3" y="4" width="18" height="14" rx="2"/><path d="M8 21h8M12 18v3"/>
@@ -74,13 +77,12 @@
 <section id="showcase" class="section">
   <div class="section-head reveal">
     <span class="section-tag">// Интерфейс</span>
-    <h2>Меню визуалов — <kbd class="kbd-inline">Right Shift</kbd></h2>
-    <p class="section-sub">HUD, NoRender, Fullbright, Crosshair, ViewModel, TargetEsp, CustomHitBox и другие модули — включаются в один клик.</p>
+    <h2>Меню визуалов</h2>
+    <p class="section-sub">Всё собрано в одном месте. Никаких команд в чат, только удобный UI.</p>
   </div>
-  <div class="showcase-shot tilt-card reveal">
-    <div class="shot-glow"></div>
+  <div class="showcase-shot tilt-3d reveal">
     <img src="{{ url_for('static', filename='img/menu.png') }}"
-         alt="Полное меню Dark Visuals с модулями HUD, NoRender, Fullbright, Crosshair, ViewModel, TargetEsp" loading="lazy">
+         alt="Полное меню Dark Visuals" loading="lazy">
   </div>
   <div class="module-chips reveal">
     <span>HUD</span><span>NoRender</span><span>Fullbright</span><span>Crosshair</span>
@@ -96,7 +98,7 @@
   </div>
   <div class="pricing">
     {% for key, plan in plans.items() %}
-      <div class="plan-card tilt-card reveal {% if key == '120' %}highlight{% endif %}">
+      <div class="plan-card tilt-3d reveal {% if key == '120' %}highlight{% endif %}">
         {% if key == '120' %}<span class="badge">Популярно</span>{% endif %}
         <h3>{{ plan.name }}</h3>
         <div class="price">{{ plan.price }} <span>₽</span></div>
@@ -123,18 +125,24 @@
     <p class="section-sub">Команда и ключевые участники Dark Visuals</p>
   </div>
   <div class="trusted-grid reveal">
-    <div class="trusted-card tilt-card">
-      <img src="https://raw.githubusercontent.com/kryytoi/darkvisualasss/main/static/img/MrDarko.png" alt="MrDarko" class="trusted-avatar avatar-accent">
+    <div class="trusted-card tilt-3d">
+      <div class="avatar-wrapper avatar-accent">
+        <img src="https://raw.githubusercontent.com/kryytoi/darkvisualasss/main/static/img/MrDarko.png" alt="MrDarko" class="trusted-avatar">
+      </div>
       <h3>MrDarko</h3>
       <span class="trusted-role role-creator">создатель</span>
     </div>
-    <div class="trusted-card tilt-card">
-      <img src="https://raw.githubusercontent.com/kryytoi/darkvisualasss/main/static/img/Meow.png" alt="Meow" class="trusted-avatar avatar-blue">
+    <div class="trusted-card tilt-3d">
+      <div class="avatar-wrapper avatar-blue">
+        <img src="https://raw.githubusercontent.com/kryytoi/darkvisualasss/main/static/img/Meow.png" alt="Meow" class="trusted-avatar">
+      </div>
       <h3>Meow</h3>
       <span class="trusted-role role-tester">Тестер</span>
     </div>
-    <div class="trusted-card tilt-card">
-      <img src="https://raw.githubusercontent.com/kryytoi/darkvisualasss/main/static/img/PipaKiva.png" alt="PipaKiva" class="trusted-avatar avatar-pink">
+    <div class="trusted-card tilt-3d">
+      <div class="avatar-wrapper avatar-pink">
+        <img src="https://raw.githubusercontent.com/kryytoi/darkvisualasss/main/static/img/PipaKiva.png" alt="PipaKiva" class="trusted-avatar">
+      </div>
       <h3>PipaKiva</h3>
       <span class="trusted-role role-tortik">Тортик</span>
     </div>
