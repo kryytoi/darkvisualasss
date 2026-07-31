@@ -1,97 +1,385 @@
-<!DOCTYPE html>
-<html lang="ru">
-<head>
-<meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>{% block title %}Dark Visuals — визуальные эффекты для Minecraft{% endblock %}</title>
-<meta name="description" content="Dark Visuals — клиент визуалов для Fabric 1.21.4. Открой меню на правый Shift.">
-<link rel="icon" href="{{ url_for('static', filename='img/logo.png') }}" type="image/png">
+{% extends "base.html" %}
 
-<link rel="preconnect" href="https://fonts.googleapis.com">
-<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&display=swap" rel="stylesheet">
-<script src="https://cdn.tailwindcss.com"></script>
-<script src="https://unpkg.com/lucide@latest"></script>
-<link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
-</head>
-<body class="min-h-screen bg-[#050505] text-white">
+{% block content %}
+<style>
+    .index-wrapper {
+        max-width: 1100px;
+        margin: 100px auto 60px auto;
+        padding: 0 20px;
+        font-family: 'Inter', 'Segoe UI', sans-serif;
+        color: #c9d1d9;
+    }
 
-<!-- NAVBAR -->
-<nav class="fixed top-0 left-0 right-0 z-50 px-6 py-6">
-  <div class="max-w-7xl mx-auto flex items-center justify-between bg-black/40 backdrop-blur-xl border border-white/10 rounded-[2rem] px-8 py-4">
-    <a href="{{ url_for('index') }}" class="flex items-center gap-3">
-      <div class="w-10 h-10 rounded-xl overflow-hidden shadow-[0_0_15px_rgba(168,85,247,0.5)]">
-        <img src="{{ url_for('static', filename='img/logo.png') }}" alt="Dark Visuals" class="w-full h-full object-cover">
-      </div>
-      <span class="text-xl font-bold tracking-tight text-glow">DARK VISUALS</span>
-    </a>
+    /* --- HERO SECTION --- */
+    .hero {
+        text-align: center;
+        padding: 60px 20px 40px 20px;
+        background: radial-gradient(circle at center, rgba(124, 58, 237, 0.15) 0%, rgba(13, 13, 18, 0) 70%);
+    }
 
-    <div class="hidden md:flex items-center gap-8">
-      <a href="{{ url_for('index') }}#features" class="text-sm font-medium text-neutral-400 hover:text-purple-400 transition-colors">Функции</a>
-      <a href="{{ url_for('index') }}#showcase" class="text-sm font-medium text-neutral-400 hover:text-purple-400 transition-colors">Интерфейс</a>
-      <a href="{{ url_for('index') }}#pricing" class="text-sm font-medium text-neutral-400 hover:text-purple-400 transition-colors">Прайс-лист</a>
-    </div>
+    .hero-title {
+        font-size: 56px;
+        font-weight: 800;
+        color: #ffffff;
+        margin-bottom: 16px;
+        letter-spacing: -1px;
+    }
 
-    {% if user %}
-      <a href="{{ url_for('profile') }}" class="hidden md:block px-6 py-2 rounded-full purple-gradient text-sm font-semibold hover:shadow-[0_0_20px_rgba(168,85,247,0.5)] transition-all">
-        Профиль
-      </a>
-    {% else %}
-      <a href="{{ url_for('login') }}" class="hidden md:block px-6 py-2 rounded-full bg-white/5 border border-white/10 text-sm font-semibold hover:bg-white/10 transition-colors">
-        Войти
-      </a>
-    {% endif %}
+    .hero-title span {
+        background: linear-gradient(135deg, #a78bfa, #7c3aed);
+        -webkit-background-clip: text;
+        -webkit-text-fill-color: transparent;
+    }
 
-    <button id="menuBtn" class="md:hidden text-white">
-      <i data-lucide="menu" id="menuIconOpen" class="w-6 h-6"></i>
-      <i data-lucide="x" id="menuIconClose" class="w-6 h-6 hidden"></i>
-    </button>
-  </div>
+    .hero-subtitle {
+        font-size: 18px;
+        color: #8b8b9e;
+        max-width: 650px;
+        margin: 0 auto 30px auto;
+        line-height: 1.6;
+    }
 
-  <div id="mobileMenu" class="mobile-menu hidden absolute top-24 left-6 right-6 bg-neutral-900 border border-white/10 rounded-3xl p-6 flex-col gap-4 md:hidden">
-    <a href="{{ url_for('index') }}#features" class="text-lg font-medium">Функции</a>
-    <a href="{{ url_for('index') }}#showcase" class="text-lg font-medium">Интерфейс</a>
-    <a href="{{ url_for('index') }}#pricing" class="text-lg font-medium">Прайс-лист</a>
-    {% if user %}
-      <a href="{{ url_for('profile') }}" class="w-full text-center py-4 rounded-2xl purple-gradient font-bold">Профиль</a>
-      <a href="{{ url_for('logout') }}" class="w-full text-center py-3 rounded-2xl bg-white/5 border border-white/10 font-bold">Выйти</a>
-    {% else %}
-      <a href="{{ url_for('register') }}" class="w-full text-center py-4 rounded-2xl purple-gradient font-bold">Регистрация</a>
-      <a href="{{ url_for('login') }}" class="w-full text-center py-3 rounded-2xl bg-white/5 border border-white/10 font-bold">Войти</a>
-    {% endif %}
-  </div>
-</nav>
+    .hero-buttons {
+        display: flex;
+        justify-content: center;
+        gap: 16px;
+        flex-wrap: wrap;
+    }
 
-{% with messages = get_flashed_messages(with_categories=true) %}
-  {% if messages %}
-    <div class="flash-stack">
-    {% for category, message in messages %}
-      <div class="flash {{ category }}">{{ message }}</div>
-    {% endfor %}
-    </div>
-  {% endif %}
-{% endwith %}
+    .btn-main {
+        display: inline-flex;
+        align-items: center;
+        gap: 8px;
+        background: linear-gradient(135deg, #7c3aed, #6d28d9);
+        color: #fff;
+        text-decoration: none;
+        padding: 14px 28px;
+        border-radius: 10px;
+        font-weight: 600;
+        font-size: 15px;
+        transition: all 0.2s ease;
+        box-shadow: 0 8px 20px rgba(124, 58, 237, 0.3);
+    }
 
-<main>
-  {% block content %}{% endblock %}
-</main>
+    .btn-main:hover {
+        transform: translateY(-2px);
+        box-shadow: 0 12px 25px rgba(124, 58, 237, 0.5);
+    }
 
-<!-- FOOTER -->
-<footer class="px-6 py-12 border-t border-white/5">
-  <div class="max-w-7xl mx-auto flex flex-col md:flex-row items-center justify-between gap-4 text-sm text-neutral-500">
-    <div class="flex items-center gap-2">
-      <div class="w-7 h-7 rounded-lg overflow-hidden">
-        <img src="{{ url_for('static', filename='img/logo.png') }}" alt="" class="w-full h-full object-cover">
-      </div>
-      <span class="font-bold text-white">DARK VISUALS</span>
-    </div>
-    <span>&copy; 2026 Dark Visuals — сделан для Fabric 1.21.4</span>
-    <span class="flex items-center gap-2">
-      Меню в игре: <kbd class="px-2 py-1 rounded-md bg-white/5 border border-white/10 text-xs font-mono">Right Shift</kbd>
-    </span>
-  </div>
-</footer>
+    .btn-secondary {
+        display: inline-flex;
+        align-items: center;
+        gap: 8px;
+        background: #111118;
+        border: 1px solid #222233;
+        color: #fff;
+        text-decoration: none;
+        padding: 14px 28px;
+        border-radius: 10px;
+        font-weight: 600;
+        font-size: 15px;
+        transition: all 0.2s ease;
+    }
 
-<script src="{{ url_for('static', filename='js/main.js') }}" defer></script>
-</body>
-</html>
+    .btn-secondary:hover {
+        background: #1a1a26;
+        border-color: #33334d;
+        transform: translateY(-2px);
+    }
+
+    /* --- FEATURES SECTION --- */
+    .features-grid {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+        gap: 20px;
+        margin: 60px 0;
+    }
+
+    .feature-card {
+        background: #111118;
+        border: 1px solid #1f1f2e;
+        border-radius: 14px;
+        padding: 24px;
+        transition: border-color 0.2s;
+    }
+
+    .feature-card:hover {
+        border-color: #3b3b54;
+    }
+
+    .feature-icon {
+        width: 42px;
+        height: 42px;
+        background: rgba(167, 139, 250, 0.1);
+        border-radius: 10px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        margin-bottom: 16px;
+    }
+
+    .feature-icon svg {
+        stroke: #a78bfa;
+        width: 22px;
+        height: 22px;
+    }
+
+    .feature-title {
+        font-size: 18px;
+        font-weight: 700;
+        color: #fff;
+        margin-bottom: 8px;
+    }
+
+    .feature-desc {
+        font-size: 14px;
+        color: #8b8b9e;
+        line-height: 1.5;
+    }
+
+    /* --- PRICING SECTION --- */
+    .pricing-header {
+        text-align: center;
+        margin-bottom: 35px;
+    }
+
+    .pricing-grid {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+        gap: 20px;
+        margin-bottom: 60px;
+    }
+
+    .price-card {
+        background: #111118;
+        border: 1px solid #1f1f2e;
+        border-radius: 16px;
+        padding: 30px 24px;
+        text-align: center;
+        position: relative;
+        display: flex;
+        flex-direction: column;
+        justify-content: space-between;
+    }
+
+    .price-card.popular {
+        border-color: #7c3aed;
+        box-shadow: 0 10px 30px rgba(124, 58, 237, 0.2);
+    }
+
+    .popular-badge {
+        position: absolute;
+        top: -12px;
+        left: 50%;
+        transform: translateX(-50%);
+        background: #7c3aed;
+        color: #fff;
+        font-size: 11px;
+        font-weight: 700;
+        padding: 4px 12px;
+        border-radius: 20px;
+        text-transform: uppercase;
+    }
+
+    .plan-name {
+        font-size: 20px;
+        font-weight: 700;
+        color: #fff;
+        margin-bottom: 10px;
+    }
+
+    .plan-price {
+        font-size: 34px;
+        font-weight: 800;
+        color: #fff;
+        margin-bottom: 20px;
+    }
+
+    /* --- TRUSTED SECTION --- */
+    .trusted-section {
+        margin-top: 80px;
+        padding-top: 40px;
+        border-top: 1px solid #1a1a26;
+    }
+
+    .trusted-cards {
+        display: flex;
+        justify-content: center;
+        align-items: center;
+        gap: 30px;
+        flex-wrap: wrap;
+        margin-top: 30px;
+    }
+
+    .trusted-card {
+        background: #111118;
+        border: 1px solid #1f1f2e;
+        border-radius: 16px;
+        padding: 25px 30px;
+        text-align: center;
+        width: 220px;
+        transition: transform 0.2s, border-color 0.2s;
+        box-shadow: 0 10px 25px rgba(0,0,0,0.4);
+    }
+
+    .trusted-card:hover {
+        transform: translateY(-4px);
+        border-color: #3b3b54;
+    }
+
+    .avatar-round {
+        width: 84px;
+        height: 84px;
+        border-radius: 50%;
+        object-fit: cover;
+        margin-bottom: 14px;
+    }
+</style>
+
+<div class="index-wrapper">
+
+    <!-- HERO -->
+    <section class="hero">
+        <h1 class="hero-title"><span>Dark Visuals</span></h1>
+        <p class="hero-subtitle">Уникальный визуал, максимальная производительность и абсолютная безопасность без чит-функций для вашей комфортной игры.</p>
+        
+        <div class="hero-buttons">
+            {% if session.get('user_id') %}
+                <a href="{{ url_for('profile') }}" class="btn-main">
+                    Перейти в профиль
+                </a>
+            {% else %}
+                <a href="{{ url_for('register') }}" class="btn-main">
+                    Начать играть
+                </a>
+                <a href="{{ url_for('login') }}" class="btn-secondary">
+                    Войти в аккаунт
+                </a>
+            {% endif %}
+        </div>
+    </section>
+
+    <!-- FEATURES -->
+    <section class="features-grid">
+        <div class="feature-card">
+            <div class="feature-icon">
+                <svg viewBox="0 0 24 24" fill="none" stroke-width="2"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"></path></svg>
+            </div>
+            <div class="feature-title">100% Legit & Safe</div>
+            <div class="feature-desc">Никаких запрещённых чит-функций. Клиент полностью легитен, без вирусов и троянов.</div>
+        </div>
+
+        <div class="feature-card">
+            <div class="feature-icon">
+                <svg viewBox="0 0 24 24" fill="none" stroke-width="2"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"></polygon></svg>
+            </div>
+            <div class="feature-title">Высокий FPS</div>
+            <div class="feature-desc">Глубокая оптимизация кода позволяет получить максимальный прирост кадров даже на слабых ПК.</div>
+        </div>
+
+        <div class="feature-card">
+            <div class="feature-icon">
+                <svg viewBox="0 0 24 24" fill="none" stroke-width="2"><circle cx="12" cy="12" r="3"></circle><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"></path></svg>
+            </div>
+            <div class="feature-title">Кастомизация</div>
+            <div class="feature-desc">Удобное HUD-меню (Right Shift) для гибкой настройки интерфейса и визуала под свой вкус.</div>
+        </div>
+    </section>
+
+    <!-- PRICING -->
+    <section>
+        <div class="pricing-header">
+            <h2 style="font-size: 32px; font-weight: 800; color: #fff; margin-bottom: 8px;">💲 Прайс - Лист 💲</h2>
+            <p style="color: #8b8b9e; font-size: 14px;">Выбери подходящий тариф и играй с удовольствием</p>
+        </div>
+
+        <div class="pricing-grid">
+            <!-- 30 Дней -->
+            <div class="price-card">
+                <div>
+                    <div class="plan-name">30 дней 3️⃣0️⃣</div>
+                    <div class="plan-price">200 рублей</div>
+                    <ul style="list-style: none; padding: 0; margin: 0 0 25px 0; text-align: left; color: #8b8b9e; font-size: 13px; line-height: 2;">
+                        <li>✔ Доступ ко всем функциям</li>
+                        <li>✔ Бесплатные обновления</li>
+                        <li>✔ Техническая поддержка</li>
+                    </ul>
+                </div>
+                <a href="{{ url_for('profile') }}" class="btn-secondary" style="justify-content: center;">Купить</a>
+            </div>
+
+            <!-- 120 Дней -->
+            <div class="price-card">
+                <div>
+                    <div class="plan-name">120 дней 1️⃣2️⃣0️⃣</div>
+                    <div class="plan-price">400 рублей</div>
+                    <ul style="list-style: none; padding: 0; margin: 0 0 25px 0; text-align: left; color: #8b8b9e; font-size: 13px; line-height: 2;">
+                        <li>✔ Доступ на 4 месяца</li>
+                        <li>✔ Все обновления</li>
+                        <li>✔ Поддержка</li>
+                    </ul>
+                </div>
+                <a href="{{ url_for('profile') }}" class="btn-secondary" style="justify-content: center;">Купить</a>
+            </div>
+
+            <!-- Навсегда -->
+            <div class="price-card popular">
+                <div class="popular-badge">Выгодно</div>
+                <div>
+                    <div class="plan-name">Навсегда ♾️</div>
+                    <div class="plan-price">600 рублей</div>
+                    <ul style="list-style: none; padding: 0; margin: 0 0 25px 0; text-align: left; color: #8b8b9e; font-size: 13px; line-height: 2;">
+                        <li>✔ Вечный доступ к клиенту</li>
+                        <li>✔ Все будущие обновления</li>
+                        <li>✔ Приоритетная поддержка</li>
+                    </ul>
+                </div>
+                <a href="{{ url_for('profile') }}" class="btn-main" style="justify-content: center;">Купить навсегда</a>
+            </div>
+        </div>
+    </section>
+
+    <!-- SECTION: ПРОЕКТУ ДОВЕРЯЮТ -->
+    <section class="trusted-section">
+        <div style="text-align: center;">
+            <h2 style="font-size: 26px; font-weight: 700; color: #fff; margin: 0 0 8px 0;">Проекту доверяют</h2>
+            <p style="color: #8b8b9e; font-size: 14px; margin: 0;">Команда и ключевые участники Dark Visuals</p>
+        </div>
+
+        <div class="trusted-cards">
+            
+            <!-- MrDarko -->
+            <div class="trusted-card">
+                <img src="https://raw.githubusercontent.com/kryytoi/darkvisualasss/main/static/img/MrDarko.png" 
+                     alt="MrDarko" 
+                     class="avatar-round"
+                     style="border: 2px solid #a78bfa; box-shadow: 0 4px 15px rgba(167, 139, 250, 0.3);">
+                <div style="color: #fff; font-weight: 700; font-size: 17px; margin-bottom: 4px;">MrDarko</div>
+                <div style="color: #a78bfa; font-size: 13px; font-weight: 500;">создатель</div>
+            </div>
+
+            <!-- Meow -->
+            <div class="trusted-card">
+                <img src="https://raw.githubusercontent.com/kryytoi/darkvisualasss/main/static/img/Meow.png" 
+                     alt="Meow" 
+                     class="avatar-round"
+                     style="border: 2px solid #38bdf8; box-shadow: 0 4px 15px rgba(56, 189, 248, 0.3);">
+                <div style="color: #fff; font-weight: 700; font-size: 17px; margin-bottom: 4px;">Meow</div>
+                <div style="color: #38bdf8; font-size: 13px; font-weight: 500;">Тестер</div>
+            </div>
+
+            <!-- PipaKiva -->
+            <div class="trusted-card">
+                <img src="https://raw.githubusercontent.com/kryytoi/darkvisualasss/main/static/img/PipaKiva.png" 
+                     alt="PipaKiva" 
+                     class="avatar-round"
+                     style="border: 2px solid #f472b6; box-shadow: 0 4px 15px rgba(244, 114, 182, 0.3);">
+                <div style="color: #fff; font-weight: 700; font-size: 17px; margin-bottom: 4px;">PipaKiva</div>
+                <div style="color: #f472b6; font-size: 13px; font-weight: 500;">Тортик</div>
+            </div>
+
+        </div>
+    </section>
+
+</div>
+{% endblock %}
