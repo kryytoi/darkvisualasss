@@ -1,17 +1,21 @@
 :root {
   color-scheme: dark;
+  --bg: #050505;
+  --card: #0d0b14;
+  --card-border: rgba(124, 58, 237, 0.2);
   --purple: #7c3aed;
   --purple-light: #a855f7;
-  
-  /* Переменные для карточек и текста */
-  --card: #0f0f15;
-  --card-border: rgba(255, 255, 255, 0.08);
   --accent: var(--purple);
   --accent-soft: var(--purple-light);
   --text: #ffffff;
+  --text-dim: #94a3b8;
 }
 
-* { scrollbar-width: thin; scrollbar-color: var(--purple) #050505; }
+* {
+  box-sizing: border-box;
+  scrollbar-width: thin;
+  scrollbar-color: var(--purple) #050505;
+}
 *::-webkit-scrollbar { width: 8px; }
 *::-webkit-scrollbar-track { background: #050505; }
 *::-webkit-scrollbar-thumb { background-color: var(--purple); border-radius: 20px; }
@@ -20,7 +24,7 @@ html { scroll-behavior: smooth; }
 
 body {
   margin: 0;
-  background-color: #050505;
+  background-color: var(--bg);
   color: var(--text);
   overflow-x: hidden;
   font-family: 'Inter', system-ui, Avenir, Helvetica, Arial, sans-serif;
@@ -28,48 +32,324 @@ body {
 
 ::selection { background: rgba(168, 85, 247, 0.3); }
 
-.text-glow { text-shadow: 0 0 10px rgba(168, 85, 247, 0.5); }
-.purple-gradient { background: linear-gradient(135deg, var(--purple) 0%, var(--purple-light) 100%); }
-
-/* reveal-on-scroll */
-.reveal { opacity: 0; transform: translateY(20px); transition: opacity .7s ease, transform .7s ease; }
-.reveal.in { opacity: 1; transform: translateY(0); }
-
-.reveal-scale { opacity: 0; transform: scale(.95); transition: opacity .7s ease, transform .7s ease; }
-.reveal-scale.in { opacity: 1; transform: scale(1); }
-
-.hero-fade-left { opacity: 0; transform: translateX(-50px); transition: opacity .8s ease, transform .8s ease; }
-.hero-fade-left.in { opacity: 1; transform: translateX(0); }
-
-.hero-fade-scale { opacity: 0; transform: scale(.85); transition: opacity 1s ease, transform 1s ease; }
-.hero-fade-scale.in { opacity: 1; transform: scale(1); }
-
-.feature-card { transition: transform .25s ease, border-color .25s ease; }
-.feature-card:hover { transform: translateY(-5px); }
-
-.mobile-menu { transition: opacity .25s ease, transform .25s ease; }
-
-.tilt-card { transition: transform .2s ease; }
-
-.glow-btn:hover { box-shadow: 0 0 30px rgba(168, 85, 247, 0.4); }
-
-.bg-glow {
-  background: radial-gradient(closest-side, rgba(124, 58, 237, 0.25), transparent 70%);
-  filter: blur(60px);
+/* --- АНИМАЦИИ ПОЯВЛЕНИЯ (REVEAL) --- */
+.reveal {
+  opacity: 0;
+  transform: translateY(20px);
+  transition: opacity 0.7s ease, transform 0.7s ease;
+}
+.reveal.in {
+  opacity: 1;
+  transform: translateY(0);
 }
 
-.flash-stack { position: fixed; top: 96px; right: 24px; z-index: 100; display: flex; flex-direction: column; gap: 10px; }
-.flash {
-  padding: 14px 20px; border-radius: 16px; font-size: 14px; font-weight: 600;
-  backdrop-filter: blur(16px); border: 1px solid rgba(255, 255, 255, 0.1);
-  animation: flashIn .3s ease;
+/* Fallback, если JS не добавил класс .in */
+body:not(:has(.reveal.in)) .reveal {
+  opacity: 1;
+  transform: none;
 }
-.flash.error { background: rgba(239, 68, 68, 0.15); color: #fca5a5; border-color: rgba(239, 68, 68, 0.3); }
-.flash.success { background: rgba(168, 85, 247, 0.15); color: #d8b4fe; border-color: rgba(168, 85, 247, 0.3); }
 
-@keyframes flashIn { from { opacity: 0; transform: translateX(20px); } to { opacity: 1; transform: translateX(0); } }
+/* --- СЕКЦИИ И ОФОРМЛЕНИЕ --- */
+.section, .hero {
+  max-width: 1100px;
+  margin: 0 auto;
+  padding: 60px 20px;
+}
 
-/* ---------- Секция "Проекту доверяют" ---------- */
+.hero {
+  text-align: center;
+  padding-top: 40px;
+}
+
+.hero-badge {
+  display: inline-block;
+  padding: 6px 16px;
+  background: rgba(124, 58, 237, 0.15);
+  border: 1px solid rgba(124, 58, 237, 0.4);
+  border-radius: 20px;
+  color: var(--purple-light);
+  font-size: 13px;
+  font-weight: 600;
+  margin-bottom: 20px;
+}
+
+.hero h1 {
+  font-size: 56px;
+  font-weight: 900;
+  letter-spacing: -1px;
+  margin: 0 0 16px 0;
+  color: #fff;
+}
+
+.hero h1 .accent {
+  background: linear-gradient(135deg, var(--purple-light), var(--purple));
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  filter: drop-shadow(0 0 20px rgba(124, 58, 237, 0.6));
+}
+
+.hero-sub {
+  max-width: 650px;
+  margin: 0 auto 30px auto;
+  color: var(--text-dim);
+  font-size: 16px;
+  line-height: 1.6;
+}
+
+kbd, .kbd-inline {
+  background: #1e1b4b;
+  border: 1px solid #4338ca;
+  color: #a5b4fc;
+  padding: 3px 8px;
+  border-radius: 6px;
+  font-size: 13px;
+  font-family: monospace;
+}
+
+.hero-actions {
+  display: flex;
+  justify-content: center;
+  gap: 15px;
+  margin-bottom: 45px;
+  flex-wrap: wrap;
+}
+
+/* --- КНОПКИ --- */
+.btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 14px 28px;
+  border-radius: 12px;
+  font-weight: 700;
+  text-decoration: none;
+  transition: all 0.25s ease;
+  font-size: 15px;
+  cursor: pointer;
+}
+
+.btn-glow {
+  background: linear-gradient(135deg, var(--purple), #6d28d9);
+  color: #fff;
+  box-shadow: 0 0 20px rgba(124, 58, 237, 0.4);
+}
+
+.btn-glow:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 0 30px rgba(168, 85, 247, 0.6);
+}
+
+.btn-outline {
+  background: rgba(255, 255, 255, 0.03);
+  border: 1px solid rgba(255, 255, 255, 0.15);
+  color: var(--text);
+}
+
+.btn-outline:hover {
+  background: rgba(255, 255, 255, 0.08);
+  border-color: rgba(255, 255, 255, 0.3);
+  transform: translateY(-2px);
+}
+
+.btn.full {
+  width: 100%;
+}
+
+/* --- СКРИНШОТЫ --- */
+.hero-shot, .showcase-shot {
+  position: relative;
+  border-radius: 16px;
+  overflow: hidden;
+  border: 1px solid var(--card-border);
+  background: var(--card);
+  box-shadow: 0 20px 50px rgba(0, 0, 0, 0.8), 0 0 30px rgba(124, 58, 237, 0.2);
+  margin: 0 auto;
+  max-width: 950px;
+}
+
+.hero-shot img, .showcase-shot img {
+  width: 100%;
+  height: auto;
+  display: block;
+}
+
+.shot-caption {
+  padding: 12px;
+  background: rgba(13, 11, 20, 0.95);
+  color: var(--text-dim);
+  font-size: 13px;
+  border-top: 1px solid var(--card-border);
+  text-align: center;
+}
+
+/* --- ЗАГОЛОВКИ СЕКЦИЙ --- */
+.section-head {
+  text-align: center;
+  margin-bottom: 40px;
+}
+
+.section-tag {
+  color: var(--purple-light);
+  font-family: monospace;
+  font-size: 14px;
+  font-weight: 600;
+}
+
+.section-head h2 {
+  font-size: 32px;
+  color: #fff;
+  margin: 8px 0;
+  font-weight: 800;
+}
+
+.section-sub {
+  color: var(--text-dim);
+  font-size: 15px;
+  max-width: 650px;
+  margin: 10px auto 0 auto;
+  line-height: 1.5;
+}
+
+/* --- ФИЧИ (КАРТОЧКИ) --- */
+.features {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(230px, 1fr));
+  gap: 20px;
+}
+
+.feature-card {
+  background: var(--card);
+  border: 1px solid var(--card-border);
+  border-radius: 14px;
+  padding: 24px;
+  transition: transform 0.25s ease, border-color 0.25s ease;
+}
+
+.feature-card:hover {
+  border-color: var(--purple-light);
+  transform: translateY(-5px);
+}
+
+.feature-icon {
+  width: 44px;
+  height: 44px;
+  background: rgba(124, 58, 237, 0.15);
+  border-radius: 10px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--purple-light);
+  margin-bottom: 16px;
+}
+
+.feature-icon svg {
+  width: 24px;
+  height: 24px;
+}
+
+.feature-card h3 {
+  color: #fff;
+  font-size: 18px;
+  margin: 0 0 8px 0;
+}
+
+.feature-card p {
+  color: var(--text-dim);
+  font-size: 14px;
+  line-height: 1.5;
+  margin: 0;
+}
+
+/* --- ЧИПСЫ МОДУЛЕЙ --- */
+.module-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  justify-content: center;
+  margin-top: 25px;
+}
+
+.module-chips span {
+  background: var(--card);
+  border: 1px solid var(--card-border);
+  color: #cbd5e1;
+  padding: 8px 16px;
+  border-radius: 20px;
+  font-size: 13px;
+  font-weight: 500;
+}
+
+/* --- ПРАЙС-ЛИСТ --- */
+.pricing {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+  gap: 24px;
+}
+
+.plan-card {
+  background: var(--card);
+  border: 1px solid var(--card-border);
+  border-radius: 16px;
+  padding: 30px 24px;
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  transition: all 0.25s ease;
+}
+
+.plan-card.highlight {
+  border-color: var(--purple-light);
+  box-shadow: 0 0 25px rgba(124, 58, 237, 0.25);
+}
+
+.badge {
+  position: absolute;
+  top: -12px;
+  right: 20px;
+  background: var(--purple);
+  color: #fff;
+  font-size: 11px;
+  font-weight: 700;
+  padding: 4px 12px;
+  border-radius: 12px;
+  text-transform: uppercase;
+}
+
+.plan-card h3 {
+  color: #fff;
+  font-size: 22px;
+  margin: 0 0 12px 0;
+}
+
+.price {
+  font-size: 36px;
+  font-weight: 800;
+  color: #fff;
+  margin-bottom: 20px;
+}
+
+.price span {
+  font-size: 18px;
+  color: var(--text-dim);
+}
+
+.plan-perks {
+  list-style: none;
+  padding: 0;
+  margin: 0 0 30px 0;
+  color: var(--text-dim);
+  font-size: 14px;
+  line-height: 2;
+}
+
+.plan-perks li::before {
+  content: "✓ ";
+  color: var(--purple-light);
+  font-weight: bold;
+}
+
+/* --- СЕКЦИЯ "ПРОЕКТУ ДОВЕРЯЮТ" --- */
 .trusted-grid {
   display: flex;
   justify-content: center;
@@ -91,7 +371,7 @@ body {
 
 .trusted-card:hover {
   transform: translateY(-4px);
-  border-color: var(--accent);
+  border-color: var(--purple-light);
 }
 
 .trusted-avatar {
@@ -103,7 +383,7 @@ body {
 }
 
 .avatar-accent {
-  border: 2px solid var(--accent);
+  border: 2px solid var(--purple-light);
   box-shadow: 0 0 15px rgba(162, 75, 255, 0.4);
 }
 
@@ -129,6 +409,18 @@ body {
   font-weight: 600;
 }
 
-.role-creator { color: var(--accent-soft); }
+.role-creator { color: var(--purple-light); }
 .role-tester { color: #38bdf8; }
 .role-tortik { color: #f472b6; }
+
+/* --- УВЕДОМЛЕНИЯ (FLASH) --- */
+.flash-stack { position: fixed; top: 96px; right: 24px; z-index: 100; display: flex; flex-direction: column; gap: 10px; }
+.flash {
+  padding: 14px 20px; border-radius: 16px; font-size: 14px; font-weight: 600;
+  backdrop-filter: blur(16px); border: 1px solid rgba(255, 255, 255, 0.1);
+  animation: flashIn .3s ease;
+}
+.flash.error { background: rgba(239, 68, 68, 0.15); color: #fca5a5; border-color: rgba(239, 68, 68, 0.3); }
+.flash.success { background: rgba(168, 85, 247, 0.15); color: #d8b4fe; border-color: rgba(168, 85, 247, 0.3); }
+
+@keyframes flashIn { from { opacity: 0; transform: translateX(20px); } to { opacity: 1; transform: translateX(0); } }
