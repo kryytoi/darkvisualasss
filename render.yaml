@@ -14,3 +14,9 @@ services:
         sync: false
       - key: DATABASE_URL
         sync: false
+      - key: MOD_AES_KEY_BASE64
+        sync: false
+      - key: MOD_AES_IV_BASE64
+        sync: false
+      - key: MOD_FILE_URL
+        sync: false
