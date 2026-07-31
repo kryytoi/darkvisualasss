@@ -19,6 +19,10 @@ from werkzeug.security import generate_password_hash, check_password_hash
 app = Flask(__name__)
 app.secret_key = os.environ.get("SECRET_KEY", "dark_visuals_super_secret_key_2026")
 
+# Настройки для того, чтобы сессия пользователя не вылетала
+app.config["PERMANENT_SESSION_LIFETIME"] = timedelta(days=30)
+app.config["SESSION_COOKIE_HTTPONLY"] = True
+
 DATABASE_URL = os.environ.get("DATABASE_URL")
 
 # ==========================================
@@ -99,7 +103,7 @@ def init_db():
             );
             """,
         )
-        # Миграция: добавляем недостающие колонки, если таблица была создана ранее без них
+        # Автоматическая миграция (добавление недостающих колонок в Neon PostgreSQL)
         execute(db, "ALTER TABLE users ADD COLUMN IF NOT EXISTS role VARCHAR(20) DEFAULT 'User';")
         execute(db, "ALTER TABLE users ADD COLUMN IF NOT EXISTS status VARCHAR(20) DEFAULT 'active';")
         execute(db, "ALTER TABLE users ADD COLUMN IF NOT EXISTS hwid TEXT;")
@@ -277,6 +281,7 @@ def login():
         db.close()
 
         if user and check_password_hash(user["password_hash"], password):
+            session.permanent = True
             session["user_id"] = user["id"]
             return redirect(url_for("profile"))
         
@@ -315,6 +320,7 @@ def register():
         db.close()
 
         if user:
+            session.permanent = True
             session["user_id"] = user["id"]
             return redirect(url_for("profile"))
 
