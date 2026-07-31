@@ -1,385 +1,119 @@
 {% extends "base.html" %}
-
+{% block title %}Dark Visuals — клиент визуалов для Fabric 1.21.4{% endblock %}
 {% block content %}
-<style>
-    .index-wrapper {
-        max-width: 1100px;
-        margin: 100px auto 60px auto;
-        padding: 0 20px;
-        font-family: 'Inter', 'Segoe UI', sans-serif;
-        color: #c9d1d9;
-    }
 
-    /* --- HERO SECTION --- */
-    .hero {
-        text-align: center;
-        padding: 60px 20px 40px 20px;
-        background: radial-gradient(circle at center, rgba(124, 58, 237, 0.15) 0%, rgba(13, 13, 18, 0) 70%);
-    }
+<section class="hero">
+  <div class="hero-badge reveal">Fabric 1.21.4 &middot; Клиент визуалов</div>
+  <h1 class="reveal">DARK<span class="accent">VISUALS</span></h1>
+  <p class="hero-sub reveal">
+    Улучшает твою реакцию в PvP и добавляет крутые визуальные эффекты,
+    не ломая производительность сервера. Нажми <kbd>Right Shift</kbd> — и всё меню перед тобой.
+  </p>
+  <div class="hero-actions reveal">
+    {% if user %}
+      <a href="{{ url_for('profile') }}" class="btn btn-glow">Перейти в профиль</a>
+    {% else %}
+      <a href="{{ url_for('register') }}" class="btn btn-glow">Начать бесплатно</a>
+    {% endif %}
+    <a href="#showcase" class="btn btn-outline">Смотреть интерфейс</a>
+  </div>
 
-    .hero-title {
-        font-size: 56px;
-        font-weight: 800;
-        color: #ffffff;
-        margin-bottom: 16px;
-        letter-spacing: -1px;
-    }
+  <div class="hero-shot tilt-card reveal" id="hero-shot">
+    <div class="shot-glow"></div>
+    <img src="{{ url_for('static', filename='img/menu.png') }}"
+         alt="Интерфейс Dark Visuals — меню модулей открывается на правый Shift" loading="eager">
+    <div class="shot-caption"><kbd>Right Shift</kbd> — открыть меню визуалов</div>
+  </div>
+</section>
 
-    .hero-title span {
-        background: linear-gradient(135deg, #a78bfa, #7c3aed);
-        -webkit-background-clip: text;
-        -webkit-text-fill-color: transparent;
-    }
+<section id="features" class="section">
+  <div class="section-head reveal">
+    <span class="section-tag">// Возможности</span>
+    <h2>Всё, что нужно для красивого PvP</h2>
+  </div>
+  <div class="features">
+    <div class="feature-card tilt-card reveal">
+      <div class="feature-icon">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+          <path d="M14.5 3l6.5 6.5-2 2-1-1-8 8-3 1 1-3 8-8-1-1z"/><path d="M3 21l3-1"/>
+        </svg>
+      </div>
+      <h3>PvP-ассистент</h3>
+      <p>Подсказки по таймингу удара, отображение крит-урона и полезные визуальные индикаторы во время боя.</p>
+    </div>
+    <div class="feature-card tilt-card reveal">
+      <div class="feature-icon">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+          <path d="M12 3l1.8 4.6L18 9.5l-4.2 1.9L12 16l-1.8-4.6L6 9.5l4.2-1.9L12 3z"/><path d="M19 14l.8 2 2 .8-2 .8-.8 2-.8-2-2-.8 2-.8.8-2z"/>
+        </svg>
+      </div>
+      <h3>Визуальные эффекты</h3>
+      <p>ChinaHat, JumpCircle, Snow, трейлы и подсветка попаданий — бои эффектнее без падения FPS.</p>
+    </div>
+    <div class="feature-card tilt-card reveal">
+      <div class="feature-icon">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+          <path d="M12 3l7 3v5c0 4.5-3 8-7 10-4-2-7-5.5-7-10V6l7-3z"/>
+        </svg>
+      </div>
+      <h3>Безопасность</h3>
+      <p>Не использует читерские механики (авто-клик, kill-aura) — только честные визуальные улучшения.</p>
+    </div>
+    <div class="feature-card tilt-card reveal">
+      <div class="feature-icon">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+          <rect x="3" y="4" width="18" height="14" rx="2"/><path d="M8 21h8M12 18v3"/>
+        </svg>
+      </div>
+      <h3>Удобное меню</h3>
+      <p>Полноценный интерфейс на правый Shift: поиск, категории, тумблеры и тонкая настройка каждого модуля.</p>
+    </div>
+  </div>
+</section>
 
-    .hero-subtitle {
-        font-size: 18px;
-        color: #8b8b9e;
-        max-width: 650px;
-        margin: 0 auto 30px auto;
-        line-height: 1.6;
-    }
+<section id="showcase" class="section">
+  <div class="section-head reveal">
+    <span class="section-tag">// Интерфейс</span>
+    <h2>Меню визуалов — <kbd class="kbd-inline">Right Shift</kbd></h2>
+    <p class="section-sub">HUD, NoRender, Fullbright, Crosshair, ViewModel, TargetEsp, CustomHitBox и другие модули — включаются в один клик.</p>
+  </div>
+  <div class="showcase-shot tilt-card reveal">
+    <div class="shot-glow"></div>
+    <img src="{{ url_for('static', filename='img/menu.png') }}"
+         alt="Полное меню Dark Visuals с модулями HUD, NoRender, Fullbright, Crosshair, ViewModel, TargetEsp" loading="lazy">
+  </div>
+  <div class="module-chips reveal">
+    <span>HUD</span><span>NoRender</span><span>Fullbright</span><span>Crosshair</span>
+    <span>ViewModel</span><span>TargetEsp</span><span>CustomHitBox</span><span>ChinaHat</span>
+    <span>JumpCircle</span><span>Snow</span><span>Aspect Ratio</span><span>UI</span>
+  </div>
+</section>
 
-    .hero-buttons {
-        display: flex;
-        justify-content: center;
-        gap: 16px;
-        flex-wrap: wrap;
-    }
+<section id="pricing" class="section">
+  <div class="section-head reveal">
+    <span class="section-tag">// Цены</span>
+    <h2>Выбери свой план</h2>
+  </div>
+  <div class="pricing">
+    {% for key, plan in plans.items() %}
+      <div class="plan-card tilt-card reveal {% if key == '120' %}highlight{% endif %}">
+        {% if key == '120' %}<span class="badge">Популярно</span>{% endif %}
+        <h3>{{ plan.name }}</h3>
+        <div class="price">{{ plan.price }} <span>₽</span></div>
+        <ul class="plan-perks">
+          <li>Все визуальные модули</li>
+          <li>Меню на Right Shift</li>
+          <li>Обновления мода</li>
+          {% if key == 'forever' %}<li>Без продлений — навсегда</li>{% endif %}
+        </ul>
+        {% if user %}
+          <a href="{{ url_for('buy', plan_key=key) }}" class="btn {% if key == '120' %}btn-glow{% else %}btn-outline{% endif %} full">Купить</a>
+        {% else %}
+          <a href="{{ url_for('register') }}" class="btn {% if key == '120' %}btn-glow{% else %}btn-outline{% endif %} full">Купить</a>
+        {% endif %}
+      </div>
+    {% endfor %}
+  </div>
+</section>
 
-    .btn-main {
-        display: inline-flex;
-        align-items: center;
-        gap: 8px;
-        background: linear-gradient(135deg, #7c3aed, #6d28d9);
-        color: #fff;
-        text-decoration: none;
-        padding: 14px 28px;
-        border-radius: 10px;
-        font-weight: 600;
-        font-size: 15px;
-        transition: all 0.2s ease;
-        box-shadow: 0 8px 20px rgba(124, 58, 237, 0.3);
-    }
-
-    .btn-main:hover {
-        transform: translateY(-2px);
-        box-shadow: 0 12px 25px rgba(124, 58, 237, 0.5);
-    }
-
-    .btn-secondary {
-        display: inline-flex;
-        align-items: center;
-        gap: 8px;
-        background: #111118;
-        border: 1px solid #222233;
-        color: #fff;
-        text-decoration: none;
-        padding: 14px 28px;
-        border-radius: 10px;
-        font-weight: 600;
-        font-size: 15px;
-        transition: all 0.2s ease;
-    }
-
-    .btn-secondary:hover {
-        background: #1a1a26;
-        border-color: #33334d;
-        transform: translateY(-2px);
-    }
-
-    /* --- FEATURES SECTION --- */
-    .features-grid {
-        display: grid;
-        grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
-        gap: 20px;
-        margin: 60px 0;
-    }
-
-    .feature-card {
-        background: #111118;
-        border: 1px solid #1f1f2e;
-        border-radius: 14px;
-        padding: 24px;
-        transition: border-color 0.2s;
-    }
-
-    .feature-card:hover {
-        border-color: #3b3b54;
-    }
-
-    .feature-icon {
-        width: 42px;
-        height: 42px;
-        background: rgba(167, 139, 250, 0.1);
-        border-radius: 10px;
-        display: flex;
-        align-items: center;
-        justify-content: center;
-        margin-bottom: 16px;
-    }
-
-    .feature-icon svg {
-        stroke: #a78bfa;
-        width: 22px;
-        height: 22px;
-    }
-
-    .feature-title {
-        font-size: 18px;
-        font-weight: 700;
-        color: #fff;
-        margin-bottom: 8px;
-    }
-
-    .feature-desc {
-        font-size: 14px;
-        color: #8b8b9e;
-        line-height: 1.5;
-    }
-
-    /* --- PRICING SECTION --- */
-    .pricing-header {
-        text-align: center;
-        margin-bottom: 35px;
-    }
-
-    .pricing-grid {
-        display: grid;
-        grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
-        gap: 20px;
-        margin-bottom: 60px;
-    }
-
-    .price-card {
-        background: #111118;
-        border: 1px solid #1f1f2e;
-        border-radius: 16px;
-        padding: 30px 24px;
-        text-align: center;
-        position: relative;
-        display: flex;
-        flex-direction: column;
-        justify-content: space-between;
-    }
-
-    .price-card.popular {
-        border-color: #7c3aed;
-        box-shadow: 0 10px 30px rgba(124, 58, 237, 0.2);
-    }
-
-    .popular-badge {
-        position: absolute;
-        top: -12px;
-        left: 50%;
-        transform: translateX(-50%);
-        background: #7c3aed;
-        color: #fff;
-        font-size: 11px;
-        font-weight: 700;
-        padding: 4px 12px;
-        border-radius: 20px;
-        text-transform: uppercase;
-    }
-
-    .plan-name {
-        font-size: 20px;
-        font-weight: 700;
-        color: #fff;
-        margin-bottom: 10px;
-    }
-
-    .plan-price {
-        font-size: 34px;
-        font-weight: 800;
-        color: #fff;
-        margin-bottom: 20px;
-    }
-
-    /* --- TRUSTED SECTION --- */
-    .trusted-section {
-        margin-top: 80px;
-        padding-top: 40px;
-        border-top: 1px solid #1a1a26;
-    }
-
-    .trusted-cards {
-        display: flex;
-        justify-content: center;
-        align-items: center;
-        gap: 30px;
-        flex-wrap: wrap;
-        margin-top: 30px;
-    }
-
-    .trusted-card {
-        background: #111118;
-        border: 1px solid #1f1f2e;
-        border-radius: 16px;
-        padding: 25px 30px;
-        text-align: center;
-        width: 220px;
-        transition: transform 0.2s, border-color 0.2s;
-        box-shadow: 0 10px 25px rgba(0,0,0,0.4);
-    }
-
-    .trusted-card:hover {
-        transform: translateY(-4px);
-        border-color: #3b3b54;
-    }
-
-    .avatar-round {
-        width: 84px;
-        height: 84px;
-        border-radius: 50%;
-        object-fit: cover;
-        margin-bottom: 14px;
-    }
-</style>
-
-<div class="index-wrapper">
-
-    <!-- HERO -->
-    <section class="hero">
-        <h1 class="hero-title"><span>Dark Visuals</span></h1>
-        <p class="hero-subtitle">Уникальный визуал, максимальная производительность и абсолютная безопасность без чит-функций для вашей комфортной игры.</p>
-        
-        <div class="hero-buttons">
-            {% if session.get('user_id') %}
-                <a href="{{ url_for('profile') }}" class="btn-main">
-                    Перейти в профиль
-                </a>
-            {% else %}
-                <a href="{{ url_for('register') }}" class="btn-main">
-                    Начать играть
-                </a>
-                <a href="{{ url_for('login') }}" class="btn-secondary">
-                    Войти в аккаунт
-                </a>
-            {% endif %}
-        </div>
-    </section>
-
-    <!-- FEATURES -->
-    <section class="features-grid">
-        <div class="feature-card">
-            <div class="feature-icon">
-                <svg viewBox="0 0 24 24" fill="none" stroke-width="2"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"></path></svg>
-            </div>
-            <div class="feature-title">100% Legit & Safe</div>
-            <div class="feature-desc">Никаких запрещённых чит-функций. Клиент полностью легитен, без вирусов и троянов.</div>
-        </div>
-
-        <div class="feature-card">
-            <div class="feature-icon">
-                <svg viewBox="0 0 24 24" fill="none" stroke-width="2"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"></polygon></svg>
-            </div>
-            <div class="feature-title">Высокий FPS</div>
-            <div class="feature-desc">Глубокая оптимизация кода позволяет получить максимальный прирост кадров даже на слабых ПК.</div>
-        </div>
-
-        <div class="feature-card">
-            <div class="feature-icon">
-                <svg viewBox="0 0 24 24" fill="none" stroke-width="2"><circle cx="12" cy="12" r="3"></circle><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"></path></svg>
-            </div>
-            <div class="feature-title">Кастомизация</div>
-            <div class="feature-desc">Удобное HUD-меню (Right Shift) для гибкой настройки интерфейса и визуала под свой вкус.</div>
-        </div>
-    </section>
-
-    <!-- PRICING -->
-    <section>
-        <div class="pricing-header">
-            <h2 style="font-size: 32px; font-weight: 800; color: #fff; margin-bottom: 8px;">💲 Прайс - Лист 💲</h2>
-            <p style="color: #8b8b9e; font-size: 14px;">Выбери подходящий тариф и играй с удовольствием</p>
-        </div>
-
-        <div class="pricing-grid">
-            <!-- 30 Дней -->
-            <div class="price-card">
-                <div>
-                    <div class="plan-name">30 дней 3️⃣0️⃣</div>
-                    <div class="plan-price">200 рублей</div>
-                    <ul style="list-style: none; padding: 0; margin: 0 0 25px 0; text-align: left; color: #8b8b9e; font-size: 13px; line-height: 2;">
-                        <li>✔ Доступ ко всем функциям</li>
-                        <li>✔ Бесплатные обновления</li>
-                        <li>✔ Техническая поддержка</li>
-                    </ul>
-                </div>
-                <a href="{{ url_for('profile') }}" class="btn-secondary" style="justify-content: center;">Купить</a>
-            </div>
-
-            <!-- 120 Дней -->
-            <div class="price-card">
-                <div>
-                    <div class="plan-name">120 дней 1️⃣2️⃣0️⃣</div>
-                    <div class="plan-price">400 рублей</div>
-                    <ul style="list-style: none; padding: 0; margin: 0 0 25px 0; text-align: left; color: #8b8b9e; font-size: 13px; line-height: 2;">
-                        <li>✔ Доступ на 4 месяца</li>
-                        <li>✔ Все обновления</li>
-                        <li>✔ Поддержка</li>
-                    </ul>
-                </div>
-                <a href="{{ url_for('profile') }}" class="btn-secondary" style="justify-content: center;">Купить</a>
-            </div>
-
-            <!-- Навсегда -->
-            <div class="price-card popular">
-                <div class="popular-badge">Выгодно</div>
-                <div>
-                    <div class="plan-name">Навсегда ♾️</div>
-                    <div class="plan-price">600 рублей</div>
-                    <ul style="list-style: none; padding: 0; margin: 0 0 25px 0; text-align: left; color: #8b8b9e; font-size: 13px; line-height: 2;">
-                        <li>✔ Вечный доступ к клиенту</li>
-                        <li>✔ Все будущие обновления</li>
-                        <li>✔ Приоритетная поддержка</li>
-                    </ul>
-                </div>
-                <a href="{{ url_for('profile') }}" class="btn-main" style="justify-content: center;">Купить навсегда</a>
-            </div>
-        </div>
-    </section>
-
-    <!-- SECTION: ПРОЕКТУ ДОВЕРЯЮТ -->
-    <section class="trusted-section">
-        <div style="text-align: center;">
-            <h2 style="font-size: 26px; font-weight: 700; color: #fff; margin: 0 0 8px 0;">Проекту доверяют</h2>
-            <p style="color: #8b8b9e; font-size: 14px; margin: 0;">Команда и ключевые участники Dark Visuals</p>
-        </div>
-
-        <div class="trusted-cards">
-            
-            <!-- MrDarko -->
-            <div class="trusted-card">
-                <img src="https://raw.githubusercontent.com/kryytoi/darkvisualasss/main/static/img/MrDarko.png" 
-                     alt="MrDarko" 
-                     class="avatar-round"
-                     style="border: 2px solid #a78bfa; box-shadow: 0 4px 15px rgba(167, 139, 250, 0.3);">
-                <div style="color: #fff; font-weight: 700; font-size: 17px; margin-bottom: 4px;">MrDarko</div>
-                <div style="color: #a78bfa; font-size: 13px; font-weight: 500;">создатель</div>
-            </div>
-
-            <!-- Meow -->
-            <div class="trusted-card">
-                <img src="https://raw.githubusercontent.com/kryytoi/darkvisualasss/main/static/img/Meow.png" 
-                     alt="Meow" 
-                     class="avatar-round"
-                     style="border: 2px solid #38bdf8; box-shadow: 0 4px 15px rgba(56, 189, 248, 0.3);">
-                <div style="color: #fff; font-weight: 700; font-size: 17px; margin-bottom: 4px;">Meow</div>
-                <div style="color: #38bdf8; font-size: 13px; font-weight: 500;">Тестер</div>
-            </div>
-
-            <!-- PipaKiva -->
-            <div class="trusted-card">
-                <img src="https://raw.githubusercontent.com/kryytoi/darkvisualasss/main/static/img/PipaKiva.png" 
-                     alt="PipaKiva" 
-                     class="avatar-round"
-                     style="border: 2px solid #f472b6; box-shadow: 0 4px 15px rgba(244, 114, 182, 0.3);">
-                <div style="color: #fff; font-weight: 700; font-size: 17px; margin-bottom: 4px;">PipaKiva</div>
-                <div style="color: #f472b6; font-size: 13px; font-weight: 500;">Тортик</div>
-            </div>
-
-        </div>
-    </section>
-
-</div>
 {% endblock %}
