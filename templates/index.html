@@ -1,6 +1,312 @@
 {% extends "base.html" %}
 {% block title %}Dark Visuals — клиент визуалов для Fabric 1.21.4{% endblock %}
+
 {% block content %}
+<style>
+  /* --- ВШИТЫЕ СТИЛИ ДЛЯ INDEX.HTML --- */
+  .hero, .section {
+    max-width: 1100px;
+    margin: 0 auto;
+    padding: 60px 20px;
+    color: #e2e8f0;
+    font-family: 'Inter', system-ui, -apple-system, sans-serif;
+  }
+
+  /* HERO SECTION */
+  .hero {
+    text-align: center;
+    padding-top: 50px;
+  }
+
+  .hero-badge {
+    display: inline-block;
+    padding: 6px 16px;
+    background: rgba(124, 58, 237, 0.15);
+    border: 1px solid rgba(124, 58, 237, 0.4);
+    border-radius: 20px;
+    color: #c084fc;
+    font-size: 13px;
+    font-weight: 600;
+    margin-bottom: 20px;
+  }
+
+  .hero h1 {
+    font-size: 64px;
+    font-weight: 900;
+    letter-spacing: -2px;
+    margin-bottom: 16px;
+    color: #fff;
+    line-height: 1;
+  }
+
+  .hero h1 .accent {
+    background: linear-gradient(135deg, #c084fc, #7c3aed);
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    filter: drop-shadow(0 0 25px rgba(124, 58, 237, 0.6));
+  }
+
+  .hero-sub {
+    max-width: 650px;
+    margin: 0 auto 30px auto;
+    color: #94a3b8;
+    font-size: 17px;
+    line-height: 1.6;
+  }
+
+  kbd, .kbd-inline {
+    background: #1e1b4b;
+    border: 1px solid #4338ca;
+    color: #a5b4fc;
+    padding: 3px 8px;
+    border-radius: 6px;
+    font-size: 13px;
+    font-family: monospace;
+  }
+
+  .hero-actions {
+    display: flex;
+    justify-content: center;
+    gap: 15px;
+    margin-bottom: 45px;
+    flex-wrap: wrap;
+  }
+
+  /* КНОПКИ */
+  .btn {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    padding: 14px 28px;
+    border-radius: 12px;
+    font-weight: 700;
+    text-decoration: none;
+    transition: all 0.25s ease;
+    font-size: 15px;
+  }
+
+  .btn-glow {
+    background: linear-gradient(135deg, #7c3aed, #6d28d9);
+    color: #fff;
+    box-shadow: 0 0 20px rgba(124, 58, 237, 0.4);
+  }
+
+  .btn-glow:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 0 30px rgba(124, 58, 237, 0.7);
+  }
+
+  .btn-outline {
+    background: #0f172a;
+    border: 1px solid #334155;
+    color: #e2e8f0;
+  }
+
+  .btn-outline:hover {
+    background: #1e293b;
+    border-color: #475569;
+    transform: translateY(-2px);
+  }
+
+  .btn.full {
+    width: 100%;
+    box-sizing: border-box;
+  }
+
+  /* СКРИНШОТЫ И ПРЕВЬЮ */
+  .hero-shot, .showcase-shot {
+    position: relative;
+    border-radius: 16px;
+    overflow: hidden;
+    border: 1px solid rgba(124, 58, 237, 0.4);
+    background: #090d16;
+    box-shadow: 0 20px 50px rgba(0, 0, 0, 0.8), 0 0 30px rgba(124, 58, 237, 0.25);
+    margin: 0 auto;
+    max-width: 950px;
+  }
+
+  .hero-shot img, .showcase-shot img {
+    width: 100%;
+    height: auto;
+    display: block;
+  }
+
+  .shot-caption {
+    padding: 12px;
+    background: rgba(15, 23, 42, 0.95);
+    color: #94a3b8;
+    font-size: 13px;
+    border-top: 1px solid #1e293b;
+    text-align: center;
+  }
+
+  /* ЗАГОЛОВКИ СЕКЦИЙ */
+  .section-head {
+    text-align: center;
+    margin-bottom: 40px;
+  }
+
+  .section-tag {
+    color: #818cf8;
+    font-family: monospace;
+    font-size: 14px;
+    font-weight: 600;
+  }
+
+  .section-head h2 {
+    font-size: 34px;
+    color: #fff;
+    margin: 8px 0;
+    font-weight: 800;
+  }
+
+  .section-sub {
+    color: #94a3b8;
+    font-size: 15px;
+    max-width: 650px;
+    margin: 10px auto 0 auto;
+    line-height: 1.5;
+  }
+
+  /* ФИЧИ / КАРТОЧКИ */
+  .features {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(230px, 1fr));
+    gap: 20px;
+  }
+
+  .feature-card {
+    background: #0f172a;
+    border: 1px solid #1e293b;
+    border-radius: 14px;
+    padding: 24px;
+    transition: all 0.25s ease;
+  }
+
+  .feature-card:hover {
+    border-color: #4338ca;
+    transform: translateY(-4px);
+  }
+
+  .feature-icon {
+    width: 44px;
+    height: 44px;
+    background: rgba(124, 58, 237, 0.15);
+    border-radius: 10px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: #c084fc;
+    margin-bottom: 16px;
+  }
+
+  .feature-icon svg {
+    width: 24px;
+    height: 24px;
+  }
+
+  .feature-card h3 {
+    color: #fff;
+    font-size: 18px;
+    margin-bottom: 8px;
+  }
+
+  .feature-card p {
+    color: #94a3b8;
+    font-size: 14px;
+    line-height: 1.5;
+    margin: 0;
+  }
+
+  /* ЧИПСЫ МОДУЛЕЙ */
+  .module-chips {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 10px;
+    justify-content: center;
+    margin-top: 25px;
+  }
+
+  .module-chips span {
+    background: #0f172a;
+    border: 1px solid #1e293b;
+    color: #cbd5e1;
+    padding: 8px 16px;
+    border-radius: 20px;
+    font-size: 13px;
+    font-weight: 500;
+  }
+
+  /* ПРАЙС-ЛИСТ */
+  .pricing {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+    gap: 24px;
+  }
+
+  .plan-card {
+    background: #0f172a;
+    border: 1px solid #1e293b;
+    border-radius: 16px;
+    padding: 30px 24px;
+    position: relative;
+    display: flex;
+    flex-direction: column;
+    justify-content: space-between;
+    transition: all 0.25s ease;
+  }
+
+  .plan-card.highlight {
+    border-color: #7c3aed;
+    box-shadow: 0 0 25px rgba(124, 58, 237, 0.25);
+  }
+
+  .badge {
+    position: absolute;
+    top: -12px;
+    right: 20px;
+    background: #7c3aed;
+    color: #fff;
+    font-size: 11px;
+    font-weight: 700;
+    padding: 4px 12px;
+    border-radius: 12px;
+    text-transform: uppercase;
+  }
+
+  .plan-card h3 {
+    color: #fff;
+    font-size: 22px;
+    margin-bottom: 12px;
+  }
+
+  .price {
+    font-size: 36px;
+    font-weight: 800;
+    color: #fff;
+    margin-bottom: 20px;
+  }
+
+  .price span {
+    font-size: 18px;
+    color: #94a3b8;
+  }
+
+  .plan-perks {
+    list-style: none;
+    padding: 0;
+    margin: 0 0 30px 0;
+    color: #94a3b8;
+    font-size: 14px;
+    line-height: 2;
+  }
+
+  .plan-perks li::before {
+    content: "✓ ";
+    color: #c084fc;
+    font-weight: bold;
+  }
+</style>
 
 <section class="hero">
   <div class="hero-badge reveal">Fabric 1.21.4 &middot; Клиент визуалов</div>
