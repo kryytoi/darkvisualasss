@@ -19,7 +19,7 @@ from werkzeug.security import generate_password_hash, check_password_hash
 app = Flask(__name__)
 app.secret_key = os.environ.get("SECRET_KEY", "dark_visuals_super_secret_key_2026")
 
-# Настройки для того, чтобы сессия пользователя не вылетала
+# Настройки вечных сессий (на 30 дней)
 app.config["PERMANENT_SESSION_LIFETIME"] = timedelta(days=30)
 app.config["SESSION_COOKIE_HTTPONLY"] = True
 
@@ -84,7 +84,6 @@ def fetchall(db, query, params=()):
 def init_db():
     db = get_db()
     
-    # Схема таблицы пользователей
     if DATABASE_URL:
         execute(
             db,
@@ -103,7 +102,6 @@ def init_db():
             );
             """,
         )
-        # Автоматическая миграция (добавление недостающих колонок в Neon PostgreSQL)
         execute(db, "ALTER TABLE users ADD COLUMN IF NOT EXISTS role VARCHAR(20) DEFAULT 'User';")
         execute(db, "ALTER TABLE users ADD COLUMN IF NOT EXISTS status VARCHAR(20) DEFAULT 'active';")
         execute(db, "ALTER TABLE users ADD COLUMN IF NOT EXISTS hwid TEXT;")
@@ -130,17 +128,16 @@ def init_db():
             """,
         )
 
-    # Создание дефолтного админа (логин: admin, пароль: admin)
     admin = fetchone(db, "SELECT id FROM users WHERE username = %s", ("admin",))
     if not admin:
         now = datetime.utcnow().isoformat()
         execute(
             db,
             """
-            INSERT INTO users (username, password_hash, role, status, expires_at, created_at, is_admin)
-            VALUES (%s, %s, %s, %s, %s, %s, %s)
+            INSERT INTO users (username, password_hash, role, status, expires_at, created_at, is_admin, plan)
+            VALUES (%s, %s, %s, %s, %s, %s, %s, %s)
             """,
-            ("admin", generate_password_hash("admin"), "Dev", "active", "forever", now, True),
+            ("admin", generate_password_hash("admin"), "Dev", "active", "forever", now, True, "Lifetime"),
         )
     db.close()
 
@@ -151,7 +148,6 @@ except Exception as e:
     print(f"[DB Init Warning]: {e}")
 
 
-# Хелпер проверки текущего юзера в веб-сессии
 def current_user():
     user_id = session.get("user_id")
     if not user_id:
@@ -172,12 +168,10 @@ def validate_user_access(user, hwid_from_req):
     if user.get("status") == "frozen":
         return False, "Ваша подписка временно заморожена!"
 
-    # Проверка HWID
     user_hwid = user.get("hwid")
     if user_hwid and user_hwid != "unknown" and user_hwid != hwid_from_req:
         return False, "Привязан другой компьютер (HWID mismatch)!"
 
-    # Проверка срока действия подписки
     expires_at = user.get("expires_at")
     if not expires_at:
         return False, "У вас нет активной подписки!"
@@ -265,9 +259,9 @@ def get_mod_key():
 @app.route("/")
 def index():
     user = current_user()
-    if user:
-        return redirect(url_for("profile"))
-    return render_template("login.html")
+    # Теперь НЕТ автоматического редиректа в profile!
+    # Вывод главной страницы с поддержкой #features для всех
+    return render_template("login.html", user=user)
 
 
 @app.route("/login", methods=["GET", "POST"])
@@ -338,7 +332,34 @@ def profile():
     user = current_user()
     if not user:
         return redirect(url_for("login"))
-    return render_template("profile.html", user=user)
+
+    # Расчет статуса подписки для гарантированного отображения в профиле
+    sub_info = {
+        "active": False,
+        "text": "Нет активной подписки",
+        "days_left": 0
+    }
+    
+    expires_at = user.get("expires_at")
+    if expires_at == "forever":
+        sub_info = {"active": True, "text": "Навсегда (Forever)", "days_left": "∞"}
+    elif expires_at:
+        try:
+            exp_date = datetime.fromisoformat(expires_at)
+            now = datetime.utcnow()
+            if exp_date > now:
+                diff = exp_date - now
+                sub_info = {
+                    "active": True,
+                    "text": exp_date.strftime("%d.%m.%Y %H:%M"),
+                    "days_left": diff.days + 1
+                }
+            else:
+                sub_info = {"active": False, "text": "Истекла", "days_left": 0}
+        except ValueError:
+            sub_info = {"active": False, "text": "Ошибка даты", "days_left": 0}
+
+    return render_template("profile.html", user=user, sub=sub_info)
 
 
 # ---- АДМИН ПАНЕЛЬ ----
@@ -391,7 +412,7 @@ def admin_create_user():
         (
             username,
             generate_password_hash(password),
-            "custom" if expires_at else None,
+            "Active" if expires_at else None,
             expires_at,
             now.isoformat(),
         ),
@@ -437,7 +458,12 @@ def admin_action():
                     base_time = now
             
             new_exp = (base_time + timedelta(days=days)).isoformat()
-            execute(db, "UPDATE users SET expires_at = %s, status = 'active' WHERE id = %s", (new_exp, target_id))
+            # Теперь ОБНОВЛЯЕМ и plan, и status, чтобы профиль видел активную подписку
+            execute(
+                db, 
+                "UPDATE users SET expires_at = %s, plan = 'Active', status = 'active' WHERE id = %s", 
+                (new_exp, target_id)
+            )
             
     elif action == "freeze":
         execute(db, "UPDATE users SET status = 'frozen' WHERE id = %s", (target_id,))
