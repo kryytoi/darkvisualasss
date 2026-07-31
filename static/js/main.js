@@ -1,58 +1,90 @@
-// Dark Visuals — 3D tilt + scroll reveal
+// Dark Visuals — mobile menu, reveal on scroll, hero entrance
 
-(function () {
+document.addEventListener('DOMContentLoaded', function () {
+  if (window.lucide) lucide.createIcons();
+
+  // ---- mobile menu ----
+  var menuBtn = document.getElementById('menuBtn');
+  var mobileMenu = document.getElementById('mobileMenu');
+  var iconOpen = document.getElementById('menuIconOpen');
+  var iconClose = document.getElementById('menuIconClose');
+
+  if (menuBtn && mobileMenu) {
+    menuBtn.addEventListener('click', function () {
+      var isHidden = mobileMenu.classList.contains('hidden');
+      if (isHidden) {
+        mobileMenu.classList.remove('hidden');
+        mobileMenu.classList.add('flex');
+        if (iconOpen) iconOpen.classList.add('hidden');
+        if (iconClose) iconClose.classList.remove('hidden');
+      } else {
+        mobileMenu.classList.add('hidden');
+        mobileMenu.classList.remove('flex');
+        if (iconOpen) iconOpen.classList.remove('hidden');
+        if (iconClose) iconClose.classList.add('hidden');
+      }
+    });
+
+    mobileMenu.querySelectorAll('a, button').forEach(function (el) {
+      el.addEventListener('click', function () {
+        mobileMenu.classList.add('hidden');
+        mobileMenu.classList.remove('flex');
+        if (iconOpen) iconOpen.classList.remove('hidden');
+        if (iconClose) iconClose.classList.add('hidden');
+      });
+    });
+  }
+
+  // ---- reveal on scroll ----
   var reduceMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+  var revealEls = document.querySelectorAll('.reveal, .reveal-scale');
 
-  // ---- scroll reveal ----
-  var revealEls = document.querySelectorAll('.reveal');
   if ('IntersectionObserver' in window && !reduceMotion) {
     var io = new IntersectionObserver(function (entries) {
       entries.forEach(function (entry) {
         if (entry.isIntersecting) {
-          entry.target.classList.add('visible');
+          entry.target.classList.add('in');
           io.unobserve(entry.target);
         }
       });
     }, { threshold: 0.12 });
     revealEls.forEach(function (el) { io.observe(el); });
   } else {
-    revealEls.forEach(function (el) { el.classList.add('visible'); });
+    revealEls.forEach(function (el) { el.classList.add('in'); });
   }
+
+  // ---- hero entrance ----
+  var heroLeft = document.querySelector('.hero-fade-left');
+  var heroScale = document.querySelector('.hero-fade-scale');
+  requestAnimationFrame(function () {
+    if (heroLeft) heroLeft.classList.add('in');
+    if (heroScale) heroScale.classList.add('in');
+  });
+
+  // ---- auto-hide flash messages ----
+  document.querySelectorAll('.flash').forEach(function (el, i) {
+    setTimeout(function () {
+      el.style.opacity = '0';
+      el.style.transform = 'translateX(20px)';
+      setTimeout(function () { el.remove(); }, 300);
+    }, 5000 + i * 300);
+  });
 
   if (reduceMotion) return;
 
-  // ---- 3D tilt on cards ----
-  var maxTilt = 7;
+  // ---- subtle 3D tilt on cards ----
+  var maxTilt = 6;
   document.querySelectorAll('.tilt-card').forEach(function (card) {
-    var isHeroShot = card.classList.contains('hero-shot');
-
     card.addEventListener('mousemove', function (e) {
       var rect = card.getBoundingClientRect();
       var px = (e.clientX - rect.left) / rect.width - 0.5;
       var py = (e.clientY - rect.top) / rect.height - 0.5;
       var rx = (-py * maxTilt).toFixed(2);
       var ry = (px * maxTilt).toFixed(2);
-      var base = isHeroShot ? 'rotateX(calc(8deg + ' + rx + 'deg))' : 'rotateX(' + rx + 'deg)';
-      card.style.transform = 'perspective(1200px) ' + base + ' rotateY(' + ry + 'deg) translateZ(6px)';
+      card.style.transform = 'perspective(1200px) rotateX(' + rx + 'deg) rotateY(' + ry + 'deg) translateZ(4px)';
     });
-
     card.addEventListener('mouseleave', function () {
       card.style.transform = '';
     });
   });
-
-  // ---- parallax orbs ----
-  var orbs = document.querySelectorAll('.orb');
-  var ticking = false;
-  window.addEventListener('scroll', function () {
-    if (ticking) return;
-    ticking = true;
-    requestAnimationFrame(function () {
-      var y = window.scrollY;
-      orbs.forEach(function (orb, i) {
-        orb.style.marginTop = (y * (0.04 + i * 0.03)) + 'px';
-      });
-      ticking = false;
-    });
-  }, { passive: true });
-})();
+});
