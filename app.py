@@ -12,18 +12,15 @@ from flask import (
     session,
     flash,
     jsonify,
-    send_from_directory,
 )
 from werkzeug.security import generate_password_hash, check_password_hash
 
 app = Flask(__name__)
 app.secret_key = os.environ.get("SECRET_KEY", "dark_visuals_super_secret_key_2026")
 
-# Настройки вечных сессий (на 30 дней)
+# Вечные сессии (30 дней)
 app.config["PERMANENT_SESSION_LIFETIME"] = timedelta(days=30)
 app.config["SESSION_COOKIE_HTTPONLY"] = True
-
-DATABASE_URL = os.environ.get("DATABASE_URL")
 
 # ==========================================
 #  НАСТРОЙКИ ДЛЯ КЛЮЧЕЙ МОДА (AES)
@@ -37,13 +34,16 @@ MOD_FILE_URL = os.environ.get(
 
 
 # ==========================================
-#  РАБОТА С БАЗОЙ ДАННЫХ (PostgreSQL / SQLite)
+#  ПОДКЛЮЧЕНИЕ К БАЗЕ (PostgreSQL / SQLite)
 # ==========================================
 def get_db():
-    if DATABASE_URL:
-        conn = psycopg2.connect(DATABASE_URL, cursor_factory=RealDictCursor)
-        return conn
+    db_url = os.environ.get("DATABASE_URL")
+    if db_url:
+        if db_url.startswith("postgres://"):
+            db_url = db_url.replace("postgres://", "postgresql://", 1)
+        return psycopg2.connect(db_url, cursor_factory=RealDictCursor)
     else:
+        print("[WARNING] DATABASE_URL не задан в Render! Данные будут сбрасываться!")
         conn = sqlite3.connect("database.sqlite3")
         conn.row_factory = sqlite3.Row
         return conn
@@ -51,7 +51,7 @@ def get_db():
 
 def execute(db, query, params=()):
     cursor = db.cursor()
-    if not DATABASE_URL:
+    if not os.environ.get("DATABASE_URL"):
         query = query.replace("%s", "?")
     cursor.execute(query, params)
     db.commit()
@@ -60,31 +60,31 @@ def execute(db, query, params=()):
 
 def fetchone(db, query, params=()):
     cursor = db.cursor()
-    if not DATABASE_URL:
+    if not os.environ.get("DATABASE_URL"):
         query = query.replace("%s", "?")
     cursor.execute(query, params)
     res = cursor.fetchone()
-    if res and not DATABASE_URL:
+    if res and not os.environ.get("DATABASE_URL"):
         res = dict(res)
     return res
 
 
 def fetchall(db, query, params=()):
     cursor = db.cursor()
-    if not DATABASE_URL:
+    if not os.environ.get("DATABASE_URL"):
         query = query.replace("%s", "?")
     cursor.execute(query, params)
     res = cursor.fetchall()
-    if res and not DATABASE_URL:
+    if res and not os.environ.get("DATABASE_URL"):
         res = [dict(row) for row in res]
     return res
 
 
-# Инициализация таблиц
 def init_db():
     db = get_db()
+    is_postgres = bool(os.environ.get("DATABASE_URL"))
     
-    if DATABASE_URL:
+    if is_postgres:
         execute(
             db,
             """
@@ -158,9 +158,6 @@ def current_user():
     return user
 
 
-# ==========================================
-#  ПРОВЕРКА ПОДПИСКИ И СТАТУСА (ХЕЛПЕР)
-# ==========================================
 def validate_user_access(user, hwid_from_req):
     if user.get("status") == "banned":
         return False, "Ваш аккаунт заблокирован!"
@@ -188,7 +185,7 @@ def validate_user_access(user, hwid_from_req):
 
 
 # ==========================================
-#  API ДЛЯ C# ЛАУНЧЕРА
+#  API ДЛЯ ЛАУНЧЕРА
 # ==========================================
 
 @app.route("/api/login", methods=["POST"])
@@ -253,14 +250,16 @@ def get_mod_key():
 
 
 # ==========================================
-#  ВЕБ-ИНТЕРФЕЙС И АДМИНКА
+#  МАРШРУТЫ САЙТА
 # ==========================================
 
 @app.route("/")
 def index():
     user = current_user()
-    # Теперь НЕТ автоматического редиректа в profile!
-    # Вывод главной страницы с поддержкой #features для всех
+    # Если есть index.html (главная с секцией #features), рендерим её!
+    index_path = os.path.join(app.template_folder, "index.html")
+    if os.path.exists(index_path):
+        return render_template("index.html", user=user)
     return render_template("login.html", user=user)
 
 
@@ -333,7 +332,6 @@ def profile():
     if not user:
         return redirect(url_for("login"))
 
-    # Расчет статуса подписки для гарантированного отображения в профиле
     sub_info = {
         "active": False,
         "text": "Нет активной подписки",
@@ -362,7 +360,9 @@ def profile():
     return render_template("profile.html", user=user, sub=sub_info)
 
 
-# ---- АДМИН ПАНЕЛЬ ----
+# ==========================================
+#  АДМИНКА
+# ==========================================
 
 @app.route("/admin")
 def admin_panel():
@@ -458,7 +458,6 @@ def admin_action():
                     base_time = now
             
             new_exp = (base_time + timedelta(days=days)).isoformat()
-            # Теперь ОБНОВЛЯЕМ и plan, и status, чтобы профиль видел активную подписку
             execute(
                 db, 
                 "UPDATE users SET expires_at = %s, plan = 'Active', status = 'active' WHERE id = %s", 
