@@ -1,302 +1,307 @@
 import os
+import sqlite3
 from datetime import datetime, timedelta
-
-from flask import Flask, render_template, request, redirect, url_for, session, flash, g, jsonify
+import psycopg2
+from psycopg2.extras import RealDictCursor
+from flask import (
+    Flask,
+    render_template,
+    request,
+    redirect,
+    url_for,
+    session,
+    flash,
+    jsonify,
+    send_from_directory,
+)
 from werkzeug.security import generate_password_hash, check_password_hash
 
 app = Flask(__name__)
-app.secret_key = os.environ.get("SECRET_KEY", "change-me-in-render-env-vars")
+app.secret_key = os.environ.get("SECRET_KEY", "dark_visuals_super_secret_key_2026")
 
-# ---------------------------------------------------------------------------
-# База данных: PostgreSQL или SQLite
-# ---------------------------------------------------------------------------
 DATABASE_URL = os.environ.get("DATABASE_URL")
-USE_POSTGRES = bool(DATABASE_URL)
 
-if USE_POSTGRES:
-    import psycopg2
-    import psycopg2.extras
-
-    if DATABASE_URL.startswith("postgres://"):
-        DATABASE_URL = DATABASE_URL.replace("postgres://", "postgresql://", 1)
-else:
-    import sqlite3
-    DB_PATH = os.path.join(os.path.dirname(__file__), "database.sqlite3")
-
-LAUNCHER_URL = os.environ.get(
-    "LAUNCHER_URL",
-    "https://github.com/kryytoi/WDdwdw/releases/latest/download/launcher.exe",
+# ==========================================
+#  НАСТРОЙКИ ДЛЯ КЛЮЧЕЙ МОДА (AES)
+# ==========================================
+# Ключ и IV для расшифровки мода на клиенте (должны быть в base64)
+# Замени их на свои настоящие base64-ключи!
+MOD_AES_KEY_BASE64 = os.environ.get("MOD_AES_KEY_BASE64", "ZmFrZWtleWZvcmRlbW9uc3RyYXRpb24xMjM0NTY3ODk=")
+MOD_AES_IV_BASE64 = os.environ.get("MOD_AES_IV_BASE64", "ZmFrZWl2Zm9yZGVtbzEyMw==")
+# Прямая ссылка на зашифрованный файл darkvisuals.enc (например, на GitHub / свой хостинг / Render static)
+MOD_FILE_URL = os.environ.get(
+    "MOD_FILE_URL",
+    "https://raw.githubusercontent.com/kryytoi/WDdwdw/refs/heads/main/darkvisuals.enc",
 )
 
-PLANS = {
-    "30": {"name": "30 дней", "days": 30, "price": 200},
-    "120": {"name": "120 дней", "days": 120, "price": 400},
-    "forever": {"name": "Навсегда", "days": None, "price": 600},
-}
 
-ADMIN_KEY = os.environ.get("ADMIN_KEY", "supersecret-change-me")
+# ==========================================
+#  РАБОТА С БАЗОЙ ДАННЫХ (PostgreSQL / SQLite)
+# ==========================================
+def get_db():
+    if DATABASE_URL:
+        conn = psycopg2.connect(DATABASE_URL, cursor_factory=RealDictCursor)
+        return conn
+    else:
+        conn = sqlite3.connect("database.sqlite3")
+        conn.row_factory = sqlite3.Row
+        return conn
 
 
-# ---------------------------------------------------------------------------
-# Инициализация БД
-# ---------------------------------------------------------------------------
+def execute(db, query, params=()):
+    cursor = db.cursor()
+    if not DATABASE_URL:
+        query = query.replace("%s", "?")
+    cursor.execute(query, params)
+    db.commit()
+    return cursor
 
+
+def fetchone(db, query, params=()):
+    cursor = db.cursor()
+    if not DATABASE_URL:
+        query = query.replace("%s", "?")
+    cursor.execute(query, params)
+    res = cursor.fetchone()
+    if res and not DATABASE_URL:
+        res = dict(res)
+    return res
+
+
+def fetchall(db, query, params=()):
+    cursor = db.cursor()
+    if not DATABASE_URL:
+        query = query.replace("%s", "?")
+    cursor.execute(query, params)
+    res = cursor.fetchall()
+    if res and not DATABASE_URL:
+        res = [dict(row) for row in res]
+    return res
+
+
+# Инициализация таблиц
 def init_db():
-    hashed_password = generate_password_hash("1488yanertviet1")
-    now_str = datetime.utcnow().isoformat()
-
-    if USE_POSTGRES:
-        conn = psycopg2.connect(DATABASE_URL)
-        cur = conn.cursor()
-        cur.execute(
+    db = get_db()
+    
+    # Схема таблицы пользователей
+    if DATABASE_URL:
+        execute(
+            db,
             """
             CREATE TABLE IF NOT EXISTS users (
                 id SERIAL PRIMARY KEY,
-                username TEXT UNIQUE NOT NULL,
+                username VARCHAR(50) UNIQUE NOT NULL,
                 password_hash TEXT NOT NULL,
-                plan TEXT,
-                expires_at TEXT,
+                role VARCHAR(20) DEFAULT 'User',
+                status VARCHAR(20) DEFAULT 'active',
                 hwid TEXT,
-                status TEXT DEFAULT 'active',
-                freeze_until TEXT,
-                is_admin BOOLEAN DEFAULT FALSE,
-                created_at TEXT NOT NULL
-            )
-            """
+                plan VARCHAR(50),
+                expires_at TEXT,
+                created_at TEXT,
+                is_admin BOOLEAN DEFAULT FALSE
+            );
+            """,
         )
-        # Добавляем колонки, если таблица уже существовала
-        for col in [("hwid", "TEXT"), ("status", "TEXT DEFAULT 'active'"), ("freeze_until", "TEXT"), ("is_admin", "BOOLEAN DEFAULT FALSE")]:
-            try:
-                cur.execute(f"ALTER TABLE users ADD COLUMN {col[0]} {col[1]};")
-            except Exception:
-                conn.rollback()
-
-        cur.execute("SELECT id FROM users WHERE username = %s", ("MrDarko",))
-        if not cur.fetchone():
-            cur.execute(
-                "INSERT INTO users (username, password_hash, plan, expires_at, is_admin, created_at) "
-                "VALUES (%s, %s, %s, %s, %s, %s)",
-                ("MrDarko", hashed_password, "forever", "forever", True, now_str),
-            )
-        else:
-            cur.execute("UPDATE users SET is_admin = TRUE WHERE username = %s", ("MrDarko",))
-        conn.commit()
-        conn.close()
     else:
-        conn = sqlite3.connect(DB_PATH)
-        cur = conn.cursor()
-        cur.execute(
+        execute(
+            db,
             """
             CREATE TABLE IF NOT EXISTS users (
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
                 username TEXT UNIQUE NOT NULL,
                 password_hash TEXT NOT NULL,
+                role TEXT DEFAULT 'User',
+                status TEXT DEFAULT 'active',
+                hwid TEXT,
                 plan TEXT,
                 expires_at TEXT,
-                hwid TEXT,
-                status TEXT DEFAULT 'active',
-                freeze_until TEXT,
-                is_admin BOOLEAN DEFAULT FALSE,
-                created_at TEXT NOT NULL
-            )
-            """
+                created_at TEXT,
+                is_admin BOOLEAN DEFAULT FALSE
+            );
+            """,
         )
-        # Добавление отсутствующих колонок для SQLite
-        columns = [row[1] for row in cur.execute("PRAGMA table_info(users)").fetchall()]
-        if "hwid" not in columns:
-            cur.execute("ALTER TABLE users ADD COLUMN hwid TEXT")
-        if "status" not in columns:
-            cur.execute("ALTER TABLE users ADD COLUMN status TEXT DEFAULT 'active'")
-        if "freeze_until" not in columns:
-            cur.execute("ALTER TABLE users ADD COLUMN freeze_until TEXT")
-        if "is_admin" not in columns:
-            cur.execute("ALTER TABLE users ADD COLUMN is_admin BOOLEAN DEFAULT FALSE")
 
-        cur.execute("SELECT id FROM users WHERE username = ?", ("MrDarko",))
-        if not cur.fetchone():
-            cur.execute(
-                "INSERT INTO users (username, password_hash, plan, expires_at, is_admin, created_at) "
-                "VALUES (?, ?, ?, ?, ?, ?)",
-                ("MrDarko", hashed_password, "forever", "forever", True, now_str),
-            )
-        else:
-            cur.execute("UPDATE users SET is_admin = 1 WHERE username = ?", ("MrDarko",))
-        conn.commit()
-        conn.close()
-
-init_db()
+    # Создание дефолтного админа (логин: admin, пароль: admin)
+    admin = fetchone(db, "SELECT id FROM users WHERE username = %s", ("admin",))
+    if not admin:
+        now = datetime.utcnow().isoformat()
+        execute(
+            db,
+            """
+            INSERT INTO users (username, password_hash, role, status, expires_at, created_at, is_admin)
+            VALUES (%s, %s, %s, %s, %s, %s, %s)
+            """,
+            ("admin", generate_password_hash("admin"), "Dev", "active", "forever", now, True),
+        )
+    db.close()
 
 
-# ---------------------------------------------------------------------------
-# Слой работы с базой данных
-# ---------------------------------------------------------------------------
-
-def get_db():
-    db = getattr(g, "_database", None)
-    if db is None:
-        if USE_POSTGRES:
-            db = g._database = psycopg2.connect(
-                DATABASE_URL, cursor_factory=psycopg2.extras.RealDictCursor
-            )
-        else:
-            db = g._database = sqlite3.connect(DB_PATH)
-            db.row_factory = sqlite3.Row
-    return db
-
-@app.teardown_appcontext
-def close_connection(exception):
-    db = getattr(g, "_database", None)
-    if db is not None:
-        db.close()
-
-def q(sql):
-    return sql if USE_POSTGRES else sql.replace("%s", "?")
-
-def fetchone(db, sql, params=()):
-    cur = db.cursor()
-    cur.execute(q(sql), params)
-    row = cur.fetchone()
-    cur.close()
-    return row
-
-def fetchall(db, sql, params=()):
-    cur = db.cursor()
-    cur.execute(q(sql), params)
-    rows = cur.fetchall()
-    cur.close()
-    return rows
-
-def execute(db, sql, params=()):
-    cur = db.cursor()
-    cur.execute(q(sql), params)
-    db.commit()
-    cur.close()
+try:
+    init_db()
+except Exception as e:
+    print(f"[DB Init Warning]: {e}")
 
 
-# ---------- вспомогательные функции ----------
-
-def check_and_update_freeze(user, db):
-    """Проверяет, не закончился ли срок заморозки."""
-    if user and user["status"] == "frozen" and user["freeze_until"]:
-        freeze_until = datetime.fromisoformat(user["freeze_until"])
-        if datetime.utcnow() >= freeze_until:
-            execute(db, "UPDATE users SET status = 'active', freeze_until = NULL WHERE id = %s", (user["id"],))
-
+# Хелпер проверки текущего юзера в веб-сессии
 def current_user():
-    uid = session.get("user_id")
-    if not uid:
+    user_id = session.get("user_id")
+    if not user_id:
         return None
     db = get_db()
-    user = fetchone(db, "SELECT * FROM users WHERE id = %s", (uid,))
-    check_and_update_freeze(user, db)
+    user = fetchone(db, "SELECT * FROM users WHERE id = %s", (user_id,))
+    db.close()
     return user
 
-def subscription_status(user):
-    if not user or not user["expires_at"]:
-        return "none", None
+
+# ==========================================
+#  ПРОВЕРКА ПОДПИСКИ И СТАТУСА (ХЕЛПЕР)
+# ==========================================
+def validate_user_access(user, hwid_from_req):
+    """
+    Проверяет бан, заморозку, HWID и подписку.
+    Возвращает (is_valid, error_message).
+    """
     if user["status"] == "banned":
-        return "banned", None
+        return False, "Ваш аккаунт заблокирован!"
+
     if user["status"] == "frozen":
-        return "frozen", user["freeze_until"]
-    if user["expires_at"] == "forever":
-        return "forever", None
+        return False, "Ваша подписка временно заморожена!"
 
-    expires = datetime.fromisoformat(user["expires_at"])
-    if expires < datetime.utcnow():
-        return "expired", expires
-    return "active", expires
+    # Проверка HWID
+    user_hwid = user.get("hwid")
+    if user_hwid and user_hwid != "unknown" and user_hwid != hwid_from_req:
+        return False, "Привязан другой компьютер (HWID mismatch)!"
 
-@app.context_processor
-def inject_user():
-    return {"user": current_user()}
+    # Проверка срока действия подписки
+    expires_at = user.get("expires_at")
+    if not expires_at:
+        return False, "У вас нет активной подписки!"
+
+    if expires_at != "forever":
+        try:
+            exp_date = datetime.fromisoformat(expires_at)
+            if datetime.utcnow() > exp_date:
+                return False, "Ваша подписка истекла!"
+        except ValueError:
+            return False, "Ошибка формата подписки!"
+
+    return True, None
 
 
-# ---------- Маршруты приложения ----------
+# ==========================================
+#  API ДЛЯ C# ЛАУНЧЕРА
+# ==========================================
+
+# 1. Логин для лаунчера (/api/login и дубликат /api/launcher/login)
+@app.route("/api/login", methods=["POST"])
+@app.route("/api/launcher/login", methods=["POST"])
+def launcher_login():
+    data = request.get_json(force=True, silent=True) or {}
+    username = data.get("username", "").strip()
+    password = data.get("password", "")
+    hwid = data.get("hwid", "unknown")
+
+    if not username or not password:
+        return jsonify({"success": False, "message": "Заполните логин и пароль!"}), 400
+
+    db = get_db()
+    user = fetchone(db, "SELECT * FROM users WHERE username = %s", (username,))
+
+    if not user or not check_password_hash(user["password_hash"], password):
+        db.close()
+        return jsonify({"success": False, "message": "Неверный логин или пароль!"}), 401
+
+    # Валидация подписки / бана
+    is_valid, err_msg = validate_user_access(user, hwid)
+    if not is_valid:
+        db.close()
+        return jsonify({"success": False, "message": err_msg}), 403
+
+    # Привязка HWID при первом успешном входе
+    if not user.get("hwid") and hwid != "unknown":
+        execute(db, "UPDATE users SET hwid = %s WHERE id = %s", (hwid, user["id"]))
+
+    db.close()
+    return jsonify({
+        "success": True,
+        "message": "Успешная авторизация!",
+        "role": user.get("role", "User")
+    }), 200
+
+
+# 2. Выдача ключа шифрования мода (/api/mod-key)
+@app.route("/api/mod-key", methods=["POST"])
+def get_mod_key():
+    data = request.get_json(force=True, silent=True) or {}
+    username = data.get("login") or data.get("username", "")
+    hwid = data.get("hwid", "unknown")
+
+    if not username:
+        return jsonify({"error": "Логин не указан"}), 400
+
+    db = get_db()
+    user = fetchone(db, "SELECT * FROM users WHERE username = %s", (username,))
+    db.close()
+
+    if not user:
+        return jsonify({"error": "Пользователь не найден"}), 404
+
+    is_valid, err_msg = validate_user_access(user, hwid)
+    if not is_valid:
+        return jsonify({"error": err_msg}), 403
+
+    return jsonify({
+        "KeyBase64": MOD_AES_KEY_BASE64,
+        "IvBase64": MOD_AES_IV_BASE64,
+        "ModUrl": MOD_FILE_URL
+    }), 200
+
+
+# ==========================================
+#  ВЕБ-ИНТЕРФЕЙС И АДМИНКА
+# ==========================================
 
 @app.route("/")
 def index():
-    return render_template("index.html", plans=PLANS)
-
-@app.route("/register", methods=["GET", "POST"])
-def register():
-    if request.method == "POST":
-        username = request.form.get("username", "").strip()
-        password = request.form.get("password", "")
-
-        if len(username) < 3 or len(password) < 4:
-            flash("Логин от 3 символов, пароль от 4 символов.", "error")
-            return redirect(url_for("register"))
-
-        db = get_db()
-        exists = fetchone(db, "SELECT id FROM users WHERE username = %s", (username,))
-        if exists:
-            flash("Такой пользователь уже существует.", "error")
-            return redirect(url_for("register"))
-
-        execute(
-            db,
-            "INSERT INTO users (username, password_hash, plan, expires_at, created_at) "
-            "VALUES (%s, %s, NULL, NULL, %s)",
-            (username, generate_password_hash(password), datetime.utcnow().isoformat()),
-        )
-
-        user = fetchone(db, "SELECT * FROM users WHERE username = %s", (username,))
-        session["user_id"] = user["id"]
-        flash("Регистрация прошла успешно!", "success")
+    user = current_user()
+    if user:
         return redirect(url_for("profile"))
+    return render_template("login.html")
 
-    return render_template("register.html")
 
 @app.route("/login", methods=["GET", "POST"])
-def login():
+def web_login():
     if request.method == "POST":
         username = request.form.get("username", "").strip()
         password = request.form.get("password", "")
 
         db = get_db()
         user = fetchone(db, "SELECT * FROM users WHERE username = %s", (username,))
+        db.close()
 
-        if user is None or not check_password_hash(user["password_hash"], password):
-            flash("Неверный логин или пароль.", "error")
-            return redirect(url_for("login"))
-
-        session["user_id"] = user["id"]
-        return redirect(url_for("profile"))
-
+        if user and check_password_hash(user["password_hash"], password):
+            session["user_id"] = user["id"]
+            return redirect(url_for("profile"))
+        
+        flash("Неверный логин или пароль", "error")
     return render_template("login.html")
+
 
 @app.route("/logout")
 def logout():
     session.clear()
-    return redirect(url_for("index"))
+    return redirect(url_for("web_login"))
+
 
 @app.route("/profile")
 def profile():
     user = current_user()
     if not user:
-        return redirect(url_for("login"))
-
-    status, expires = subscription_status(user)
-    return render_template(
-        "profile.html",
-        status=status,
-        expires=expires,
-        launcher_url=LAUNCHER_URL,
-        plans=PLANS,
-    )
-
-@app.route("/buy/<plan_key>")
-def buy(plan_key):
-    user = current_user()
-    if not user:
-        flash("Сначала войдите в аккаунт.", "error")
-        return redirect(url_for("login"))
-    if plan_key not in PLANS:
-        return redirect(url_for("index"))
-    return render_template("buy.html", plan=PLANS[plan_key], plan_key=plan_key)
+        return redirect(url_for("web_login"))
+    return render_template("profile.html", user=user)
 
 
-# ---------- АДМИН-ПАНЕЛЬ ВЕБ ----------
+# ---- АДМИН ПАНЕЛЬ ----
 
 @app.route("/admin")
 def admin_panel():
@@ -305,95 +310,104 @@ def admin_panel():
         return "Доступ запрещен", 403
 
     db = get_db()
-    users = fetchall(db, "SELECT * FROM users ORDER BY id ASC")
-    return render_template("admin.html", users=users)
+    all_users = fetchall(db, "SELECT * FROM users ORDER BY id DESC")
+    db.close()
+    return render_template("admin.html", users=all_users, current_user=user)
 
+
+# Создание пользователя из админки
+@app.route("/admin/create_user", methods=["POST"])
+def admin_create_user():
+    user = current_user()
+    if not user or not user["is_admin"]:
+        return "Доступ запрещен", 403
+
+    username = request.form.get("username", "").strip()
+    password = request.form.get("password", "")
+    days = request.form.get("days", "0")
+
+    if not username or not password:
+        flash("Логин и пароль не могут быть пустыми!", "error")
+        return redirect(url_for("admin_panel"))
+
+    db = get_db()
+    exists = fetchone(db, "SELECT id FROM users WHERE username = %s", (username,))
+    if exists:
+        db.close()
+        flash("Пользователь с таким ником уже существует!", "error")
+        return redirect(url_for("admin_panel"))
+
+    now = datetime.utcnow()
+    expires_at = None
+
+    if days == "forever":
+        expires_at = "forever"
+    elif days.isdigit() and int(days) > 0:
+        expires_at = (now + timedelta(days=int(days))).isoformat()
+
+    execute(
+        db,
+        "INSERT INTO users (username, password_hash, plan, expires_at, created_at) "
+        "VALUES (%s, %s, %s, %s, %s)",
+        (
+            username,
+            generate_password_hash(password),
+            "custom" if expires_at else None,
+            expires_at,
+            now.isoformat(),
+        ),
+    )
+    db.close()
+
+    flash(f"Пользователь {username} успешно создан!", "success")
+    return redirect(url_for("admin_panel"))
+
+
+# Быстрые действия в админке (Бан / Разбан / Заморозка / Выдача дней)
 @app.route("/admin/action", methods=["POST"])
 def admin_action():
     user = current_user()
     if not user or not user["is_admin"]:
         return "Доступ запрещен", 403
 
-    user_id = request.form.get("user_id")
+    target_id = request.form.get("user_id")
     action = request.form.get("action")
+
+    if not target_id or not action:
+        return redirect(url_for("admin_panel"))
+
     db = get_db()
-    target_user = fetchone(db, "SELECT * FROM users WHERE id = %s", (user_id,))
-    if not target_user:
-        return "Пользователь не найден", 404
 
-    now = datetime.utcnow()
-
-    if action == "add_days":
-        days = int(request.form.get("days", 30))
-        if target_user["expires_at"] and target_user["expires_at"] != "forever":
-            curr_exp = datetime.fromisoformat(target_user["expires_at"])
-            start_date = curr_exp if curr_exp > now else now
-            new_exp = (start_date + timedelta(days=days)).isoformat()
-        else:
-            new_exp = (now + timedelta(days=days)).isoformat()
-        execute(db, "UPDATE users SET expires_at = %s, status = 'active' WHERE id = %s", (new_exp, user_id))
-
-    elif action == "ban":
-        execute(db, "UPDATE users SET status = 'banned' WHERE id = %s", (user_id,))
+    if action == "ban":
+        execute(db, "UPDATE users SET status = 'banned' WHERE id = %s", (target_id,))
     elif action == "unban":
-        execute(db, "UPDATE users SET status = 'active' WHERE id = %s", (user_id,))
+        execute(db, "UPDATE users SET status = 'active' WHERE id = %s", (target_id,))
+    elif action == "add_days":
+        days = int(request.form.get("days", 0))
+        target_user = fetchone(db, "SELECT expires_at FROM users WHERE id = %s", (target_id,))
+        if target_user:
+            cur_exp = target_user.get("expires_at")
+            now = datetime.utcnow()
+            
+            if not cur_exp or cur_exp == "forever":
+                base_time = now
+            else:
+                try:
+                    parsed = datetime.fromisoformat(cur_exp)
+                    base_time = parsed if parsed > now else now
+                except ValueError:
+                    base_time = now
+            
+            new_exp = (base_time + timedelta(days=days)).isoformat()
+            execute(db, "UPDATE users SET expires_at = %s, status = 'active' WHERE id = %s", (new_exp, target_id))
+            
     elif action == "freeze":
-        days = int(request.form.get("freeze_days", 7))
-        freeze_until = (now + timedelta(days=days)).isoformat()
-        
-        # Если есть активная подписка по датам, продлеваем её на время заморозки
-        if target_user["expires_at"] and target_user["expires_at"] != "forever":
-            curr_exp = datetime.fromisoformat(target_user["expires_at"])
-            new_exp = (curr_exp + timedelta(days=days)).isoformat()
-            execute(db, "UPDATE users SET status = 'frozen', freeze_until = %s, expires_at = %s WHERE id = %s", (freeze_until, new_exp, user_id))
-        else:
-            execute(db, "UPDATE users SET status = 'frozen', freeze_until = %s WHERE id = %s", (freeze_until, user_id))
+        execute(db, "UPDATE users SET status = 'frozen' WHERE id = %s", (target_id,))
 
+    db.close()
     return redirect(url_for("admin_panel"))
 
 
-# ---------- API ДЛЯ ЛАУНЧЕРА ----------
-
-@app.route("/api/launcher/login", methods=["POST"])
-def api_launcher_login():
-    data = request.get_json() or {}
-    username = data.get("username", "").strip()
-    password = data.get("password", "")
-    hwid = data.get("hwid", "")
-
-    if not username or not password or not hwid:
-        return jsonify({"status": "error", "message": "Не заполнено одно из полей"}), 400
-
-    db = get_db()
-    user = fetchone(db, "SELECT * FROM users WHERE username = %s", (username,))
-
-    if not user or not check_password_hash(user["password_hash"], password):
-        return jsonify({"status": "error", "message": "Неверный логин или пароль"}), 401
-
-    check_and_update_freeze(user, db)
-
-    if user["status"] == "banned":
-        return jsonify({"status": "error", "message": "Аккаунт заблокирован"}), 403
-
-    if user["status"] == "frozen":
-        return jsonify({"status": "error", "message": "Ваша подписка временно заморожена"}), 403
-
-    # Привязка/проверка HWID
-    if not user["hwid"]:
-        execute(db, "UPDATE users SET hwid = %s WHERE id = %s", (hwid, user["id"]))
-    elif user["hwid"] != hwid:
-        return jsonify({"status": "error", "message": "Привязан другой HWID"}), 403
-
-    status, expires = subscription_status(user)
-    if status not in ("active", "forever"):
-        return jsonify({"status": "error", "message": "Подписка неактивна или истекла"}), 403
-
-    return jsonify({
-        "status": "success",
-        "username": user["username"],
-        "expires_at": user["expires_at"]
-    }), 200
-
-
 if __name__ == "__main__":
-    app.run(debug=True, host="0.0.0.0", port=int(os.environ.get("PORT", os.environ.get("DEV_PORT", 3000))))
+    port = int(os.environ.get("PORT", 5000))
+    app.run(host="0.0.0.0", port=port, debug=True)
