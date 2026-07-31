@@ -4,6 +4,7 @@ from datetime import datetime, timedelta
 from flask import Flask, render_template, request, redirect, url_for, session, flash, g
 from werkzeug.security import generate_password_hash, check_password_hash
 
+
 app = Flask(__name__)
 app.secret_key = os.environ.get("SECRET_KEY", "change-me-in-render-env-vars")
 
@@ -56,6 +57,28 @@ def get_db():
             db = g._database = sqlite3.connect(DB_PATH)
             db.row_factory = sqlite3.Row
     return db
+
+
+def ensure_admin_exists():
+    # Проверяем, есть ли MrDarko в базе данных Neon
+    admin = User.query.filter_by(username="MrDarko").first()
+    if not admin:
+        hashed_password = generate_password_hash("1488yanertviet1")
+        # Создаем администратора (адаптируйте поля под свою модель User)
+        new_admin = User(
+            username="MrDarko", 
+            password=hashed_password,
+            is_admin=True
+        )
+        db.session.add(new_admin)
+        db.session.commit()
+        print("Аккаунт MrDarko успешно создан в базе данных!")
+
+# Вызови функцию после инициализации db в app.py
+with app.app_context():
+    db.create_all()
+    ensure_admin_exists()
+
 
 
 @app.teardown_appcontext
