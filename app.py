@@ -24,11 +24,8 @@ DATABASE_URL = os.environ.get("DATABASE_URL")
 # ==========================================
 #  НАСТРОЙКИ ДЛЯ КЛЮЧЕЙ МОДА (AES)
 # ==========================================
-# Ключ и IV для расшифровки мода на клиенте (должны быть в base64)
-# Замени их на свои настоящие base64-ключи!
 MOD_AES_KEY_BASE64 = os.environ.get("MOD_AES_KEY_BASE64", "ZmFrZWtleWZvcmRlbW9uc3RyYXRpb24xMjM0NTY3ODk=")
 MOD_AES_IV_BASE64 = os.environ.get("MOD_AES_IV_BASE64", "ZmFrZWl2Zm9yZGVtbzEyMw==")
-# Прямая ссылка на зашифрованный файл darkvisuals.enc (например, на GitHub / свой хостинг / Render static)
 MOD_FILE_URL = os.environ.get(
     "MOD_FILE_URL",
     "https://raw.githubusercontent.com/kryytoi/WDdwdw/refs/heads/main/darkvisuals.enc",
@@ -102,6 +99,14 @@ def init_db():
             );
             """,
         )
+        # Миграция: добавляем недостающие колонки, если таблица была создана ранее без них
+        execute(db, "ALTER TABLE users ADD COLUMN IF NOT EXISTS role VARCHAR(20) DEFAULT 'User';")
+        execute(db, "ALTER TABLE users ADD COLUMN IF NOT EXISTS status VARCHAR(20) DEFAULT 'active';")
+        execute(db, "ALTER TABLE users ADD COLUMN IF NOT EXISTS hwid TEXT;")
+        execute(db, "ALTER TABLE users ADD COLUMN IF NOT EXISTS plan VARCHAR(50);")
+        execute(db, "ALTER TABLE users ADD COLUMN IF NOT EXISTS expires_at TEXT;")
+        execute(db, "ALTER TABLE users ADD COLUMN IF NOT EXISTS created_at TEXT;")
+        execute(db, "ALTER TABLE users ADD COLUMN IF NOT EXISTS is_admin BOOLEAN DEFAULT FALSE;")
     else:
         execute(
             db,
@@ -157,14 +162,10 @@ def current_user():
 #  ПРОВЕРКА ПОДПИСКИ И СТАТУСА (ХЕЛПЕР)
 # ==========================================
 def validate_user_access(user, hwid_from_req):
-    """
-    Проверяет бан, заморозку, HWID и подписку.
-    Возвращает (is_valid, error_message).
-    """
-    if user["status"] == "banned":
+    if user.get("status") == "banned":
         return False, "Ваш аккаунт заблокирован!"
 
-    if user["status"] == "frozen":
+    if user.get("status") == "frozen":
         return False, "Ваша подписка временно заморожена!"
 
     # Проверка HWID
@@ -192,7 +193,6 @@ def validate_user_access(user, hwid_from_req):
 #  API ДЛЯ C# ЛАУНЧЕРА
 # ==========================================
 
-# 1. Логин для лаунчера (/api/login и дубликат /api/launcher/login)
 @app.route("/api/login", methods=["POST"])
 @app.route("/api/launcher/login", methods=["POST"])
 def launcher_login():
@@ -211,13 +211,11 @@ def launcher_login():
         db.close()
         return jsonify({"success": False, "message": "Неверный логин или пароль!"}), 401
 
-    # Валидация подписки / бана
     is_valid, err_msg = validate_user_access(user, hwid)
     if not is_valid:
         db.close()
         return jsonify({"success": False, "message": err_msg}), 403
 
-    # Привязка HWID при первом успешном входе
     if not user.get("hwid") and hwid != "unknown":
         execute(db, "UPDATE users SET hwid = %s WHERE id = %s", (hwid, user["id"]))
 
@@ -229,7 +227,6 @@ def launcher_login():
     }), 200
 
 
-# 2. Выдача ключа шифрования мода (/api/mod-key)
 @app.route("/api/mod-key", methods=["POST"])
 def get_mod_key():
     data = request.get_json(force=True, silent=True) or {}
@@ -287,17 +284,54 @@ def login():
     return render_template("login.html")
 
 
+@app.route("/register", methods=["GET", "POST"])
+def register():
+    if request.method == "POST":
+        username = request.form.get("username", "").strip()
+        password = request.form.get("password", "")
+
+        if not username or not password:
+            flash("Заполните все поля!", "error")
+            return render_template("login.html")
+
+        db = get_db()
+        exists = fetchone(db, "SELECT id FROM users WHERE username = %s", (username,))
+        if exists:
+            db.close()
+            flash("Пользователь с таким логином уже существует!", "error")
+            return render_template("login.html")
+
+        now = datetime.utcnow().isoformat()
+        execute(
+            db,
+            """
+            INSERT INTO users (username, password_hash, role, status, created_at)
+            VALUES (%s, %s, %s, %s, %s)
+            """,
+            (username, generate_password_hash(password), "User", "active", now),
+        )
+        
+        user = fetchone(db, "SELECT * FROM users WHERE username = %s", (username,))
+        db.close()
+
+        if user:
+            session["user_id"] = user["id"]
+            return redirect(url_for("profile"))
+
+    return render_template("login.html")
+
+
 @app.route("/logout")
 def logout():
     session.clear()
-    return redirect(url_for("web_login"))
+    return redirect(url_for("login"))
 
 
 @app.route("/profile")
 def profile():
     user = current_user()
     if not user:
-        return redirect(url_for("web_login"))
+        return redirect(url_for("login"))
     return render_template("profile.html", user=user)
 
 
@@ -306,7 +340,7 @@ def profile():
 @app.route("/admin")
 def admin_panel():
     user = current_user()
-    if not user or not user["is_admin"]:
+    if not user or not user.get("is_admin"):
         return "Доступ запрещен", 403
 
     db = get_db()
@@ -315,11 +349,10 @@ def admin_panel():
     return render_template("admin.html", users=all_users, current_user=user)
 
 
-# Создание пользователя из админки
 @app.route("/admin/create_user", methods=["POST"])
 def admin_create_user():
     user = current_user()
-    if not user or not user["is_admin"]:
+    if not user or not user.get("is_admin"):
         return "Доступ запрещен", 403
 
     username = request.form.get("username", "").strip()
@@ -363,11 +396,10 @@ def admin_create_user():
     return redirect(url_for("admin_panel"))
 
 
-# Быстрые действия в админке (Бан / Разбан / Заморозка / Выдача дней)
 @app.route("/admin/action", methods=["POST"])
 def admin_action():
     user = current_user()
-    if not user or not user["is_admin"]:
+    if not user or not user.get("is_admin"):
         return "Доступ запрещен", 403
 
     target_id = request.form.get("user_id")
