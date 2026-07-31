@@ -1,142 +1,147 @@
 {% extends "base.html" %}
-{% block title %}Админ Панель — Dark Visuals{% endblock %}
-{% block content %}
 
-<section class="relative min-h-screen px-6 pt-32 pb-20">
-  <div class="max-w-6xl mx-auto space-y-8">
+{% block content %}
+<div class="admin-container" style="max-width: 1200px; margin: 30px auto; padding: 20px; font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; color: #fff;">
     
-    <!-- Верхняя шапка админки -->
-    <div class="flex items-center justify-between">
-      <div>
-        <h2 class="text-3xl font-black text-white">Панель Управления</h2>
-        <p class="text-sm text-neutral-400 mt-1">Управление пользователями и подписками Dark Visuals</p>
-      </div>
-      <a href="{{ url_for('profile') }}" class="px-4 py-2 bg-white/5 border border-white/10 rounded-xl text-sm font-bold text-neutral-300 hover:bg-white/10 transition">
-        ← В профиль
-      </a>
+    <!-- Заголовок и карточка админа -->
+    <div style="display: flex; justify-content: space-between; align-items: center; background: #1a1a24; padding: 20px 30px; border-radius: 12px; margin-bottom: 25px; border: 1px solid #2a2a3a;">
+        <h2>⚙️ Панель Администратора</h2>
+        <div>
+            <span>Вы вошли как: <strong style="color: #7289da;">{{ current_user.username }}</strong></span>
+            <a href="{{ url_for('profile') }}" style="margin-left: 15px; color: #aaa; text-decoration: none;">👤 В профиль</a>
+        </div>
     </div>
 
-    <!-- Блок сообщений (Flash) -->
+    <!-- Уведомления (Flash messages) -->
     {% with messages = get_flashed_messages(with_categories=true) %}
       {% if messages %}
-        {% for category, message in messages %}
-          <div class="p-4 rounded-2xl text-sm font-bold border {% if category == 'error' %}bg-red-500/10 border-red-500/20 text-red-400{% else %}bg-emerald-500/10 border-emerald-500/20 text-emerald-400{% endif %}">
-            {{ message }}
-          </div>
-        {% endfor %}
+        <div style="margin-bottom: 20px;">
+          {% for category, message in messages %}
+            <div style="padding: 12px 20px; border-radius: 8px; margin-bottom: 10px; 
+                        {% if category == 'error' %}background: #721c24; color: #f8d7da; border: 1px solid #f5c6cb;
+                        {% elif category == 'success' %}background: #155724; color: #d4edda; border: 1px solid #c3e6cb;
+                        {% elif category == 'warning' %}background: #856404; color: #fff3cd; border: 1px solid #ffeeba;
+                        {% else %}background: #0c5460; color: #d1ecf1; border: 1px solid #bee5eb;{% endif %}">
+              {{ message }}
+            </div>
+          {% endfor %}
+        </div>
       {% endif %}
     {% endwith %}
 
     <!-- Блок создания нового пользователя -->
-    <div class="p-6 bg-neutral-900/60 backdrop-blur-xl border border-white/10 rounded-3xl shadow-2xl">
-      <h3 class="text-lg font-bold text-purple-400 mb-4 flex items-center gap-2">
-        <span>➕</span> Создать нового пользователя
-      </h3>
-      <form action="{{ url_for('admin_create_user') }}" method="POST" class="grid grid-cols-1 md:grid-cols-4 gap-4">
-        <div>
-          <label class="block text-xs font-medium text-neutral-400 mb-1">Логин</label>
-          <input type="text" name="username" placeholder="DarkoClient" required class="w-full px-4 py-2.5 bg-black/50 border border-white/10 rounded-xl text-white focus:outline-none focus:border-purple-500 text-sm">
-        </div>
-        <div>
-          <label class="block text-xs font-medium text-neutral-400 mb-1">Пароль</label>
-          <input type="text" name="password" placeholder="qwerty123" required class="w-full px-4 py-2.5 bg-black/50 border border-white/10 rounded-xl text-white focus:outline-none focus:border-purple-500 text-sm">
-        </div>
-        <div>
-          <label class="block text-xs font-medium text-neutral-400 mb-1">Подписка</label>
-          <select name="days" class="w-full px-4 py-2.5 bg-black/50 border border-white/10 rounded-xl text-white focus:outline-none focus:border-purple-500 text-sm">
-            <option value="0">Без подписки</option>
-            <option value="30">30 дней</option>
-            <option value="120">120 дней</option>
-            <option value="forever">Навсегда</option>
-          </select>
-        </div>
-        <div class="flex items-end">
-          <button type="submit" class="w-full py-2.5 bg-purple-600 hover:bg-purple-500 text-white font-bold rounded-xl transition shadow-lg shadow-purple-600/20 text-sm">
-            Создать аккаунт
-          </button>
-        </div>
-      </form>
+    <div style="background: #1a1a24; padding: 25px; border-radius: 12px; margin-bottom: 30px; border: 1px solid #2a2a3a;">
+        <h3 style="margin-top: 0; margin-bottom: 15px;">➕ Создать нового пользователя</h3>
+        <form action="{{ url_for('admin_create_user') }}" method="POST" style="display: flex; gap: 15px; flex-wrap: wrap; align-items: center;">
+            <input type="text" name="username" placeholder="Логин" required style="background: #0f0f15; border: 1px solid #333; color: #fff; padding: 10px 15px; border-radius: 6px; flex: 1; min-width: 150px;">
+            <input type="password" name="password" placeholder="Пароль" required style="background: #0f0f15; border: 1px solid #333; color: #fff; padding: 10px 15px; border-radius: 6px; flex: 1; min-width: 150px;">
+            <input type="text" name="days" placeholder="Дней (напр. 30, 120 или forever)" style="background: #0f0f15; border: 1px solid #333; color: #fff; padding: 10px 15px; border-radius: 6px; flex: 1; min-width: 200px;">
+            <button type="submit" style="background: #4e5d94; color: #fff; border: none; padding: 10px 25px; border-radius: 6px; cursor: pointer; font-weight: bold; transition: 0.2s;">Создать</button>
+        </form>
     </div>
 
     <!-- Таблица пользователей -->
-    <div class="overflow-x-auto bg-neutral-900/40 backdrop-blur-xl border border-white/10 rounded-3xl p-6 shadow-2xl">
-      <table class="w-full text-left text-sm">
-        <thead>
-          <tr class="border-b border-white/10 text-purple-400">
-            <th class="p-3">ID</th>
-            <th class="p-3">Ник</th>
-            <th class="p-3">HWID</th>
-            <th class="p-3">Статус</th>
-            <th class="p-3">Истекает</th>
-            <th class="p-3">Действия</th>
-          </tr>
-        </thead>
-        <tbody class="divide-y divide-white/5">
-          {% for u in users %}
-          <tr class="hover:bg-white/[0.02] transition">
-            <td class="p-3 font-mono text-neutral-500">#{{ u.id }}</td>
-            <td class="p-3 font-bold text-white">
-              {{ u.username }} 
-              {% if u.is_admin %}
-                <span class="ml-1 text-[10px] bg-purple-500/20 text-purple-300 border border-purple-500/30 px-2 py-0.5 rounded-full">ADMIN</span>
-              {% endif %}
-            </td>
-            <td class="p-3 font-mono text-xs text-neutral-400">
-              {{ u.hwid or 'Не привязан' }}
-            </td>
-            <td class="p-3">
-              {% if u.status == 'banned' %}
-                <span class="px-2.5 py-1 text-xs font-bold bg-red-500/10 text-red-400 border border-red-500/20 rounded-full">БАН</span>
-              {% elif u.status == 'frozen' %}
-                <span class="px-2.5 py-1 text-xs font-bold bg-cyan-500/10 text-cyan-400 border border-cyan-500/20 rounded-full">ЗАМОРОЗКА</span>
-              {% else %}
-                <span class="px-2.5 py-1 text-xs font-bold bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 rounded-full">АКТИВЕН</span>
-              {% endif %}
-            </td>
-            <td class="p-3 font-mono text-xs text-neutral-300">
-              {% if u.expires_at == 'forever' %}
-                <span class="text-purple-400 font-bold">Навсегда</span>
-              {% else %}
-                {{ u.expires_at or 'Нет подписки' }}
-              {% endif %}
-            </td>
-            <td class="p-3 flex flex-wrap gap-2">
-              
-              <!-- Выдача дней -->
-              <form action="{{ url_for('admin_action') }}" method="POST" class="flex gap-1">
-                <input type="hidden" name="user_id" value="{{ u.id }}">
-                <input type="hidden" name="action" value="add_days">
-                <input type="number" name="days" value="30" class="w-14 px-2 py-1 bg-black/50 border border-white/10 rounded-lg text-center text-xs text-white">
-                <button class="px-2.5 py-1 bg-purple-600/80 hover:bg-purple-600 rounded-lg text-xs font-bold text-white transition">+ Дни</button>
-              </form>
+    <div style="background: #1a1a24; padding: 25px; border-radius: 12px; border: 1px solid #2a2a3a; overflow-x: auto;">
+        <h3 style="margin-top: 0; margin-bottom: 20px;">👥 Список пользователей ({{ users|length }})</h3>
+        
+        <table style="width: 100%; border-collapse: collapse; text-align: left;">
+            <thead>
+                <tr style="border-bottom: 2px solid #2a2a3a; color: #888;">
+                    <th style="padding: 12px;">ID</th>
+                    <th style="padding: 12px;">Логин</th>
+                    <th style="padding: 12px;">Роль</th>
+                    <th style="padding: 12px;">Статус</th>
+                    <th style="padding: 12px;">Подписка</th>
+                    <th style="padding: 12px;">HWID</th>
+                    <th style="padding: 12px;">Действия</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for u in users %}
+                <tr style="border-bottom: 1px solid #222230;">
+                    <td style="padding: 12px;">{{ u.id }}</td>
+                    <td style="padding: 12px;">
+                        <strong>{{ u.username }}</strong>
+                        {% if u.is_admin %}
+                            <span style="background: #7289da; color: #fff; font-size: 10px; padding: 2px 6px; border-radius: 4px; margin-left: 5px;">ADMIN</span>
+                        {% endif %}
+                    </td>
+                    <td style="padding: 12px; color: #aaa;">{{ u.role or 'User' }}</td>
+                    <td style="padding: 12px;">
+                        {% if u.status == 'banned' %}
+                            <span style="color: #ff4d4d; font-weight: bold;">Забанен</span>
+                        {% elif u.status == 'frozen' %}
+                            <span style="color: #ffaa00; font-weight: bold;">Заморожен</span>
+                        {% else %}
+                            <span style="color: #4dff88; font-weight: bold;">Активен</span>
+                        {% endif %}
+                    </td>
+                    <td style="padding: 12px; font-size: 13px;">
+                        {% if u.expires_at == 'forever' %}
+                            <span style="color: #00e676; font-weight: bold;">Навсегда</span>
+                        {% elif u.expires_at %}
+                            <span style="color: #ddd;">{{ u.expires_at[:16].replace('T', ' ') }}</span>
+                        {% else %}
+                            <span style="color: #666;">Нет</span>
+                        {% endif %}
+                    </td>
+                    <td style="padding: 12px; font-family: monospace; font-size: 11px; color: #888;">
+                        {% if u.hwid %}
+                            <span title="{{ u.hwid }}">{{ u.hwid[:12] }}...</span>
+                        {% else %}
+                            <span style="color: #444;">Не привязан</span>
+                        {% endif %}
+                    </td>
+                    <td style="padding: 12px;">
+                        <div style="display: flex; gap: 8px; flex-wrap: wrap; align-items: center;">
+                            
+                            <!-- Выдать / Продлить подписку -->
+                            <form action="{{ url_for('admin_action') }}" method="POST" style="display: flex; gap: 5px;">
+                                <input type="hidden" name="user_id" value="{{ u.id }}">
+                                <input type="hidden" name="action" value="add_days">
+                                <input type="text" name="days" placeholder="Дней (напр. 30)" required style="width: 100px; background: #0f0f15; border: 1px solid #333; color: #fff; padding: 4px 8px; border-radius: 4px; font-size: 12px;">
+                                <button type="submit" style="background: #2e7d32; color: #fff; border: none; padding: 4px 8px; border-radius: 4px; cursor: pointer; font-size: 12px;">+ Выдать</button>
+                            </form>
 
-              <!-- Заморозка -->
-              <form action="{{ url_for('admin_action') }}" method="POST" class="flex gap-1">
-                <input type="hidden" name="user_id" value="{{ u.id }}">
-                <input type="hidden" name="action" value="freeze">
-                <button class="px-2.5 py-1 bg-cyan-600/80 hover:bg-cyan-600 rounded-lg text-xs font-bold text-white transition">Заморозить</button>
-              </form>
+                            <!-- Сброс HWID -->
+                            {% if u.hwid %}
+                            <form action="{{ url_for('admin_action') }}" method="POST" style="display: inline;">
+                                <input type="hidden" name="user_id" value="{{ u.id }}">
+                                <input type="hidden" name="action" value="reset_hwid">
+                                <button type="submit" style="background: #1565c0; color: #fff; border: none; padding: 4px 8px; border-radius: 4px; cursor: pointer; font-size: 12px;">Сбросить HWID</button>
+                            </form>
+                            {% endif %}
 
-              <!-- Бан / Разбан -->
-              <form action="{{ url_for('admin_action') }}" method="POST">
-                <input type="hidden" name="user_id" value="{{ u.id }}">
-                {% if u.status == 'banned' %}
-                  <input type="hidden" name="action" value="unban">
-                  <button class="px-2.5 py-1 bg-emerald-600/80 hover:bg-emerald-600 rounded-lg text-xs font-bold text-white transition">Разбанить</button>
-                {% else %}
-                  <input type="hidden" name="action" value="ban">
-                  <button class="px-2.5 py-1 bg-red-600/80 hover:bg-red-600 rounded-lg text-xs font-bold text-white transition">Бан</button>
-                {% endif %}
-              </form>
+                            <!-- Бан / Разбан -->
+                            {% if u.status == 'banned' %}
+                            <form action="{{ url_for('admin_action') }}" method="POST" style="display: inline;">
+                                <input type="hidden" name="user_id" value="{{ u.id }}">
+                                <input type="hidden" name="action" value="unban">
+                                <button type="submit" style="background: #43a047; color: #fff; border: none; padding: 4px 8px; border-radius: 4px; cursor: pointer; font-size: 12px;">Разбанить</button>
+                            </form>
+                            {% else %}
+                            <form action="{{ url_for('admin_action') }}" method="POST" style="display: inline;">
+                                <input type="hidden" name="user_id" value="{{ u.id }}">
+                                <input type="hidden" name="action" value="ban">
+                                <button type="submit" style="background: #c62828; color: #fff; border: none; padding: 4px 8px; border-radius: 4px; cursor: pointer; font-size: 12px;">Бан</button>
+                            </form>
+                            {% endif %}
 
-            </td>
-          </tr>
-          {% endfor %}
-        </tbody>
-      </table>
+                            <!-- Заморозка -->
+                            {% if u.status != 'frozen' and u.status != 'banned' %}
+                            <form action="{{ url_for('admin_action') }}" method="POST" style="display: inline;">
+                                <input type="hidden" name="user_id" value="{{ u.id }}">
+                                <input type="hidden" name="action" value="freeze">
+                                <button type="submit" style="background: #ef6c00; color: #fff; border: none; padding: 4px 8px; border-radius: 4px; cursor: pointer; font-size: 12px;">Заморозить</button>
+                            </form>
+                            {% endif %}
+
+                        </div>
+                    </td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
     </div>
-
-  </div>
-</section>
-
+</div>
 {% endblock %}
