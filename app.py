@@ -18,7 +18,7 @@ from werkzeug.security import generate_password_hash, check_password_hash
 app = Flask(__name__)
 app.secret_key = os.environ.get("SECRET_KEY", "dark_visuals_super_secret_key_2026")
 
-# Настройки вечных сессий (30 дней)
+# Настройки сессий (30 дней)
 app.config["PERMANENT_SESSION_LIFETIME"] = timedelta(days=30)
 app.config["SESSION_COOKIE_HTTPONLY"] = True
 
@@ -283,9 +283,24 @@ def index():
     user = current_user()
     index_path = os.path.join(app.template_folder, "index.html")
     if os.path.exists(index_path):
-        # Передаем и user, и plans в шаблон index.html!
         return render_template("index.html", user=user, plans=PLANS)
     return render_template("login.html", user=user)
+
+
+# ИСПРАВЛЕНИЕ: Добавлен отсутствующий маршрут для покупки
+@app.route("/buy/<plan_key>")
+def buy(plan_key):
+    user = current_user()
+    if not user:
+        return redirect(url_for("login"))
+    
+    plan = PLANS.get(plan_key)
+    if not plan:
+        flash("Выбран несуществующий тариф!", "error")
+        return redirect(url_for("index"))
+
+    flash(f"Для покупки тарифа '{plan['name']}' обратитесь к администратору.", "info")
+    return redirect(url_for("profile"))
 
 
 @app.route("/login", methods=["GET", "POST"])
