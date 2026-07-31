@@ -1,34 +1,54 @@
 {% extends "base.html" %}
-{% block title %}Профиль — Dark Visuals{% endblock %}
+
 {% block content %}
+<div class="profile-wrapper">
+    <div class="profile-card">
+        <div class="profile-header">
+            <div class="avatar-box">
+                <i class="fa-solid fa-user-ninja"></i>
+            </div>
+            <h2>{{ session.get('username', 'Пользователь') }}</h2>
+            <span class="badge admin-badge">
+                <i class="fa-solid fa-shield-halved"></i> Administrator
+            </span>
+        </div>
+        
+        <div class="profile-details">
+            <div class="info-card">
+                <i class="fa-solid fa-user info-icon"></i>
+                <div class="info-text">
+                    <span class="label">Имя пользователя</span>
+                    <span class="val">{{ session.get('username', 'MrDarko') }}</span>
+                </div>
+            </div>
 
-<div class="auth-wrap">
-  <div class="profile-card tilt-card reveal">
-    <div class="avatar" aria-hidden="true">{{ user["username"][0]|upper }}</div>
-    <h2>Привет, {{ user["username"] }}</h2>
+            <div class="info-card">
+                <i class="fa-solid fa-database info-icon"></i>
+                <div class="info-text">
+                    <span class="label">База данных</span>
+                    <span class="val">Neon PostgreSQL</span>
+                </div>
+            </div>
 
-    {% if status == "active" %}
-      <div class="status-pill active">Подписка активна</div>
-      <p class="dim">Истекает: {{ expires.strftime("%d.%m.%Y %H:%M") }} (UTC)</p>
-    {% elif status == "forever" %}
-      <div class="status-pill forever">Подписка навсегда</div>
-    {% elif status == "expired" %}
-      <div class="status-pill expired">Подписка истекла</div>
-      <p class="dim">Истекла: {{ expires.strftime("%d.%m.%Y %H:%M") }} (UTC)</p>
-    {% else %}
-      <div class="status-pill none">Нет активной подписки</div>
-    {% endif %}
+            <div class="info-card">
+                <i class="fa-solid fa-circle-check info-icon"></i>
+                <div class="info-text">
+                    <span class="label">Статус профиля</span>
+                    <span class="val status-online">
+                        <i class="fa-solid fa-circle"></i> Активен
+                    </span>
+                </div>
+            </div>
+        </div>
 
-    <div class="profile-actions">
-      {% if status in ["active", "forever"] %}
-        <a href="{{ launcher_url }}" class="btn btn-glow full">Скачать лаунчер</a>
-        <p class="dim small-text">Внутри игры: нажми <kbd>Right Shift</kbd>, чтобы открыть меню Dark Visuals.</p>
-      {% else %}
-        <p class="dim small-text">Купи подписку, чтобы открыть скачивание лаунчера.</p>
-        <a href="{{ url_for('index') }}#pricing" class="btn btn-outline full">Посмотреть тарифы</a>
-      {% endif %}
+        <div class="profile-actions">
+            <a href="{{ url_for('buy') if 'buy' in endpoints else '#' }}" class="btn btn-main">
+                <i class="fa-solid fa-cart-shopping"></i> Магазин
+            </a>
+            <a href="{{ url_for('logout') if 'logout' in endpoints else '#' }}" class="btn btn-logout">
+                <i class="fa-solid fa-right-from-bracket"></i> Выйти
+            </a>
+        </div>
     </div>
-  </div>
 </div>
-
 {% endblock %}
