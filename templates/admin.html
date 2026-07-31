@@ -1,0 +1,76 @@
+{% extends "base.html" %}
+{% block title %}Админ Панель — Dark Visuals{% endblock %}
+{% block content %}
+
+<section class="relative min-h-screen px-6 pt-32 pb-20">
+  <div class="max-w-6xl mx-auto">
+    <h2 class="text-3xl font-black mb-8">Управление пользователями</h2>
+
+    <div class="overflow-x-auto bg-neutral-900/40 backdrop-blur-xl border border-white/10 rounded-2xl p-6">
+      <table class="w-full text-left text-sm">
+        <thead>
+          <tr class="border-b border-white/10 text-purple-400">
+            <th class="p-3">ID</th>
+            <th class="p-3">Ник</th>
+            <th class="p-3">HWID</th>
+            <th class="p-3">Статус</th>
+            <th class="p-3">Истекает</th>
+            <th class="p-3">Действия</th>
+          </tr>
+        </thead>
+        <tbody class="divide-y divide-white/5">
+          {% for u in users %}
+          <tr>
+            <td class="p-3 font-mono">{{ u.id }}</td>
+            <td class="p-3 font-bold">{{ u.username }} {% if u.is_admin %}<span class="text-xs text-purple-400">(Admin)</span>{% endif %}</td>
+            <td class="p-3 font-mono text-xs text-neutral-400">{{ u.hwid or 'Не привязан' }}</td>
+            <td class="p-3">
+              {% if u.status == 'banned' %}
+                <span class="text-red-500 font-bold">Бан</span>
+              {% elif u.status == 'frozen' %}
+                <span class="text-cyan-400 font-bold">Заморозка</span>
+              {% else %}
+                <span class="text-emerald-400 font-bold">Активен</span>
+              {% endif %}
+            </td>
+            <td class="p-3 font-mono">{{ u.expires_at or 'Нет' }}</td>
+            <td class="p-3 flex flex-wrap gap-2">
+              
+              <!-- Выдача дней -->
+              <form action="{{ url_for('admin_action') }}" method="POST" class="flex gap-1">
+                <input type="hidden" name="user_id" value="{{ u.id }}">
+                <input type="hidden" name="action" value="add_days">
+                <input type="number" name="days" value="30" class="w-16 px-2 py-1 bg-black/50 border border-white/10 rounded text-center">
+                <button class="px-3 py-1 bg-purple-600 rounded font-bold hover:bg-purple-500">+ Дни</button>
+              </form>
+
+              <!-- Заморозка -->
+              <form action="{{ url_for('admin_action') }}" method="POST" class="flex gap-1">
+                <input type="hidden" name="user_id" value="{{ u.id }}">
+                <input type="hidden" name="action" value="freeze">
+                <input type="number" name="freeze_days" value="7" class="w-16 px-2 py-1 bg-black/50 border border-white/10 rounded text-center">
+                <button class="px-3 py-1 bg-cyan-600 rounded font-bold hover:bg-cyan-500">Заморозить</button>
+              </form>
+
+              <!-- Бан / Разбан -->
+              <form action="{{ url_for('admin_action') }}" method="POST">
+                <input type="hidden" name="user_id" value="{{ u.id }}">
+                {% if u.status == 'banned' %}
+                  <input type="hidden" name="action" value="unban">
+                  <button class="px-3 py-1 bg-emerald-600 rounded font-bold hover:bg-emerald-500">Разбанить</button>
+                {% else %}
+                  <input type="hidden" name="action" value="ban">
+                  <button class="px-3 py-1 bg-red-600 rounded font-bold hover:bg-red-500">Бан</button>
+                {% endif %}
+              </form>
+
+            </td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </div>
+</section>
+
+{% endblock %}
