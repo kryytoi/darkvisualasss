@@ -1,18 +1,21 @@
 {% extends "base.html" %}
-{% block title %}Оплата — PvPMod{% endblock %}
+{% block title %}Оплата — Dark Visuals{% endblock %}
 {% block content %}
 
-<div class="form-card">
-  <h2>{{ plan.name }} — {{ plan.price }} ₽</h2>
-  <p style="color: var(--text-dim); font-size: 14px; text-align: center;">
-    Переведи {{ plan.price }} ₽ удобным способом (карта / СБП / крипта — укажи здесь свои реквизиты)
-    и напиши администратору свой логин <b>{{ user["username"] }}</b> для активации подписки.
-  </p>
-  <a href="https://t.me/MrStalk3ryoo" target="_blank" rel="noopener" class="btn telegram" style="display:block; text-align:center; margin-top: 20px;">
-    ✈ Написать администратору в Telegram
-  </a>
-  <div class="form-footer">
-    <a href="{{ url_for('index') }}#pricing">← Назад к тарифам</a>
+<div class="auth-wrap">
+  <div class="form-card tilt-card reveal">
+    <span class="section-tag">// Оплата</span>
+    <h2>{{ plan.name }} — {{ plan.price }} ₽</h2>
+    <p class="dim small-text center">
+      Переведи {{ plan.price }} ₽ удобным способом (карта / СБП / крипта)
+      и напиши администратору свой логин <b>{{ user["username"] }}</b> для активации подписки.
+    </p>
+    <a href="https://t.me/MrStalk3ryoo" target="_blank" rel="noopener" class="btn btn-glow full" style="margin-top: 20px;">
+      Написать администратору в Telegram
+    </a>
+    <div class="form-footer">
+      <a href="{{ url_for('index') }}#pricing">&larr; Назад к тарифам</a>
+    </div>
   </div>
 </div>
 

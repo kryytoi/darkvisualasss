@@ -3,22 +3,38 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>{% block title %}PvPMod{% endblock %}</title>
+  <title>{% block title %}Dark Visuals{% endblock %}</title>
+  <meta name="description" content="Dark Visuals — клиент визуалов для Fabric 1.21.4. Открой меню на правый Shift.">
   <link rel="icon" href="{{ url_for('static', filename='img/logo.png') }}" type="image/png">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Unbounded:wght@500;700;900&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
 </head>
 <body>
-  <header>
-    <a href="{{ url_for('index') }}" class="logo"><img src="{{ url_for('static', filename='img/logo.png') }}" alt="PvPMod"> PvPMod</a>
+  <div class="bg-scene" aria-hidden="true">
+    <div class="orb orb-1"></div>
+    <div class="orb orb-2"></div>
+    <div class="orb orb-3"></div>
+    <div class="grid-floor"></div>
+    <div class="stars"></div>
+  </div>
+
+  <header class="site-header">
+    <a href="{{ url_for('index') }}" class="logo">
+      <span class="logo-mark"><img src="{{ url_for('static', filename='img/logo.png') }}" alt=""></span>
+      <span class="logo-text">Dark<em>Visuals</em></span>
+    </a>
     <nav>
       <a href="{{ url_for('index') }}#features">Возможности</a>
+      <a href="{{ url_for('index') }}#showcase">Интерфейс</a>
       <a href="{{ url_for('index') }}#pricing">Цены</a>
       {% if user %}
-        <a href="{{ url_for('profile') }}">Профиль</a>
-        <a href="{{ url_for('logout') }}">Выйти</a>
+        <a href="{{ url_for('profile') }}" class="nav-btn">Профиль</a>
+        <a href="{{ url_for('logout') }}" class="nav-ghost">Выйти</a>
       {% else %}
-        <a href="{{ url_for('login') }}">Войти</a>
-        <a href="{{ url_for('register') }}">Регистрация</a>
+        <a href="{{ url_for('login') }}" class="nav-ghost">Войти</a>
+        <a href="{{ url_for('register') }}" class="nav-btn">Регистрация</a>
       {% endif %}
     </nav>
   </header>
@@ -26,17 +42,25 @@
   <main>
     {% with messages = get_flashed_messages(with_categories=true) %}
       {% if messages %}
+        <div class="flash-stack">
         {% for category, message in messages %}
           <div class="flash {{ category }}">{{ message }}</div>
         {% endfor %}
+        </div>
       {% endif %}
     {% endwith %}
 
     {% block content %}{% endblock %}
   </main>
 
-  <footer>
-    © {{ 2026 }} PvPMod — сделан для Fabric 1.21.4
+  <footer class="site-footer">
+    <div class="footer-inner">
+      <span class="logo-text small">Dark<em>Visuals</em></span>
+      <span>© 2026 Dark Visuals — сделан для Fabric 1.21.4</span>
+      <span class="kbd-hint">Меню в игре: <kbd>Right Shift</kbd></span>
+    </div>
   </footer>
+
+  <script src="{{ url_for('static', filename='js/main.js') }}" defer></script>
 </body>
 </html>

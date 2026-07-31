@@ -1,20 +1,23 @@
 {% extends "base.html" %}
-{% block title %}Вход — PvPMod{% endblock %}
+{% block title %}Вход — Dark Visuals{% endblock %}
 {% block content %}
 
-<div class="form-card">
-  <h2>Вход</h2>
-  <form method="POST" action="{{ url_for('login') }}">
-    <label for="username">Логин</label>
-    <input type="text" id="username" name="username" required>
+<div class="auth-wrap">
+  <div class="form-card tilt-card reveal">
+    <span class="section-tag">// Аккаунт</span>
+    <h2>Вход</h2>
+    <form method="POST" action="{{ url_for('login') }}">
+      <label for="username">Логин</label>
+      <input type="text" id="username" name="username" placeholder="Твой ник" required>
 
-    <label for="password">Пароль</label>
-    <input type="password" id="password" name="password" required>
+      <label for="password">Пароль</label>
+      <input type="password" id="password" name="password" placeholder="••••••••" required>
 
-    <button type="submit" class="btn">Войти</button>
-  </form>
-  <div class="form-footer">
-    Нет аккаунта? <a href="{{ url_for('register') }}">Зарегистрироваться</a>
+      <button type="submit" class="btn btn-glow full">Войти</button>
+    </form>
+    <div class="form-footer">
+      Нет аккаунта? <a href="{{ url_for('register') }}">Зарегистрироваться</a>
+    </div>
   </div>
 </div>
 
