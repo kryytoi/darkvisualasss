@@ -349,69 +349,112 @@ kbd, .kbd-inline {
   font-weight: bold;
 }
 
-/* --- СЕКЦИЯ "ПРОЕКТУ ДОВЕРЯЮТ" --- */
+/* --- СЕКЦИЯ "ПРОЕКТУ ДОВЕРЯЮТ" (СОВРЕМЕННЫЙ ДИЗАЙН) --- */
+#trusted {
+  position: relative;
+}
+
+/* Фиолетовое свечение на заднем фоне */
+#trusted::before {
+  content: "";
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  width: 700px;
+  height: 400px;
+  background: radial-gradient(circle, rgba(124, 58, 237, 0.15) 0%, rgba(0,0,0,0) 70%);
+  filter: blur(50px);
+  z-index: 0;
+  pointer-events: none;
+}
+
 .trusted-grid {
   display: flex;
   justify-content: center;
-  align-items: center;
-  gap: 24px;
+  align-items: stretch;
+  gap: 30px;
   flex-wrap: wrap;
-  margin-top: 30px;
+  margin-top: 40px;
+  position: relative;
+  z-index: 1; /* Чтобы карточки были поверх свечения */
 }
 
+/* Стеклянные карточки */
 .trusted-card {
-  background: var(--card);
-  border: 1px solid var(--card-border);
-  border-radius: 14px;
-  padding: 26px 20px;
+  background: rgba(15, 15, 20, 0.6);
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
+  border: 1px solid rgba(255, 255, 255, 0.05);
+  border-radius: 24px;
+  padding: 32px 24px;
   text-align: center;
-  width: 210px;
-  transition: transform 0.2s ease, border-color 0.2s ease;
+  width: 220px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  transition: all 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.3);
 }
 
 .trusted-card:hover {
-  transform: translateY(-4px);
-  border-color: var(--purple-light);
+  transform: translateY(-10px) scale(1.02);
+  border-color: rgba(168, 85, 247, 0.5);
+  background: rgba(20, 15, 30, 0.85);
+  box-shadow: 0 20px 40px rgba(124, 58, 237, 0.25);
 }
 
 .trusted-avatar {
-  width: 80px;
-  height: 80px;
+  width: 90px;
+  height: 90px;
   border-radius: 50%;
   object-fit: cover;
-  margin-bottom: 12px;
+  margin-bottom: 20px;
+  transition: transform 0.3s ease;
 }
 
+.trusted-card:hover .trusted-avatar {
+  transform: scale(1.08);
+}
+
+/* Рамки и свечение аватарок */
 .avatar-accent {
-  border: 2px solid var(--purple-light);
-  box-shadow: 0 0 15px rgba(162, 75, 255, 0.4);
+  border: 3px solid var(--purple-light);
+  box-shadow: 0 0 20px rgba(168, 85, 247, 0.3);
 }
 
 .avatar-blue {
-  border: 2px solid #38bdf8;
-  box-shadow: 0 0 15px rgba(56, 189, 248, 0.4);
+  border: 3px solid #38bdf8;
+  box-shadow: 0 0 20px rgba(56, 189, 248, 0.3);
 }
 
 .avatar-pink {
-  border: 2px solid #f472b6;
-  box-shadow: 0 0 15px rgba(244, 114, 182, 0.4);
+  border: 3px solid #f472b6;
+  box-shadow: 0 0 20px rgba(244, 114, 182, 0.3);
 }
 
 .trusted-card h3 {
-  color: var(--text);
-  font-size: 18px;
-  font-weight: 700;
-  margin: 4px 0;
+  color: #ffffff;
+  font-size: 20px;
+  font-weight: 800;
+  margin: 0 0 10px 0;
+  letter-spacing: 0.5px;
 }
 
+/* Плашки для ролей */
 .trusted-role {
-  font-size: 13px;
-  font-weight: 600;
+  font-size: 12px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 1px;
+  padding: 6px 14px;
+  border-radius: 20px;
+  background: rgba(255, 255, 255, 0.03);
 }
 
-.role-creator { color: var(--purple-light); }
-.role-tester { color: #38bdf8; }
-.role-tortik { color: #f472b6; }
+.role-creator { color: var(--purple-light); border: 1px solid rgba(168, 85, 247, 0.2); }
+.role-tester { color: #38bdf8; border: 1px solid rgba(56, 189, 248, 0.2); }
+.role-tortik { color: #f472b6; border: 1px solid rgba(244, 114, 182, 0.2); }
 
 /* --- УВЕДОМЛЕНИЯ (FLASH) --- */
 .flash-stack { position: fixed; top: 96px; right: 24px; z-index: 100; display: flex; flex-direction: column; gap: 10px; }
