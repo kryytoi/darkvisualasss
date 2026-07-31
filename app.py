@@ -9,10 +9,7 @@ app = Flask(__name__)
 app.secret_key = os.environ.get("SECRET_KEY", "change-me-in-render-env-vars")
 
 # ---------------------------------------------------------------------------
-# База данных: PostgreSQL (например Neon — neon.tech, бесплатный тариф,
-# не удаляется по времени в отличие от бесплатного Render Postgres).
-# Если DATABASE_URL не задан — используется локальный SQLite-файл (для теста
-# на своём компьютере). На самом Render без DATABASE_URL данные будут теряться!
+# База данных: PostgreSQL или SQLite
 # ---------------------------------------------------------------------------
 DATABASE_URL = os.environ.get("DATABASE_URL")
 USE_POSTGRES = bool(DATABASE_URL)
@@ -43,7 +40,74 @@ ADMIN_KEY = os.environ.get("ADMIN_KEY", "supersecret-change-me")
 
 
 # ---------------------------------------------------------------------------
-# Слой работы с базой данных (единый интерфейс для Postgres и SQLite)
+# Инициализация БД и админа (Чистый SQL)
+# ---------------------------------------------------------------------------
+
+def init_db():
+    hashed_password = generate_password_hash("1488yanertviet1")
+    now_str = datetime.utcnow().isoformat()
+
+    if USE_POSTGRES:
+        conn = psycopg2.connect(DATABASE_URL)
+        cur = conn.cursor()
+        # Создаем таблицу
+        cur.execute(
+            """
+            CREATE TABLE IF NOT EXISTS users (
+                id SERIAL PRIMARY KEY,
+                username TEXT UNIQUE NOT NULL,
+                password_hash TEXT NOT NULL,
+                plan TEXT,
+                expires_at TEXT,
+                created_at TEXT NOT NULL
+            )
+            """
+        )
+        # Проверяем и создаем MrDarko
+        cur.execute("SELECT id FROM users WHERE username = %s", ("MrDarko",))
+        if not cur.fetchone():
+            cur.execute(
+                "INSERT INTO users (username, password_hash, plan, expires_at, created_at) "
+                "VALUES (%s, %s, %s, %s, %s)",
+                ("MrDarko", hashed_password, "forever", "forever", now_str),
+            )
+            print("Аккаунт MrDarko успешно создан в PostgreSQL!")
+        conn.commit()
+        conn.close()
+    else:
+        conn = sqlite3.connect(DB_PATH)
+        cur = conn.cursor()
+        # Создаем таблицу
+        cur.execute(
+            """
+            CREATE TABLE IF NOT EXISTS users (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                username TEXT UNIQUE NOT NULL,
+                password_hash TEXT NOT NULL,
+                plan TEXT,
+                expires_at TEXT,
+                created_at TEXT NOT NULL
+            )
+            """
+        )
+        # Проверяем и создаем MrDarko
+        cur.execute("SELECT id FROM users WHERE username = ?", ("MrDarko",))
+        if not cur.fetchone():
+            cur.execute(
+                "INSERT INTO users (username, password_hash, plan, expires_at, created_at) "
+                "VALUES (?, ?, ?, ?, ?)",
+                ("MrDarko", hashed_password, "forever", "forever", now_str),
+            )
+            print("Аккаунт MrDarko успешно создан в SQLite!")
+        conn.commit()
+        conn.close()
+
+
+init_db()
+
+
+# ---------------------------------------------------------------------------
+# Слой работы с базой данных
 # ---------------------------------------------------------------------------
 
 def get_db():
@@ -57,28 +121,6 @@ def get_db():
             db = g._database = sqlite3.connect(DB_PATH)
             db.row_factory = sqlite3.Row
     return db
-
-
-def ensure_admin_exists():
-    # Проверяем, есть ли MrDarko в базе данных Neon
-    admin = User.query.filter_by(username="MrDarko").first()
-    if not admin:
-        hashed_password = generate_password_hash("1488yanertviet1")
-        # Создаем администратора (адаптируйте поля под свою модель User)
-        new_admin = User(
-            username="MrDarko", 
-            password=hashed_password,
-            is_admin=True
-        )
-        db.session.add(new_admin)
-        db.session.commit()
-        print("Аккаунт MrDarko успешно создан в базе данных!")
-
-# Вызови функцию после инициализации db в app.py
-with app.app_context():
-    db.create_all()
-    ensure_admin_exists()
-
 
 
 @app.teardown_appcontext
@@ -106,44 +148,6 @@ def execute(db, sql, params=()):
     cur.execute(q(sql), params)
     db.commit()
     cur.close()
-
-
-def init_db():
-    if USE_POSTGRES:
-        conn = psycopg2.connect(DATABASE_URL)
-        conn.cursor().execute(
-            """
-            CREATE TABLE IF NOT EXISTS users (
-                id SERIAL PRIMARY KEY,
-                username TEXT UNIQUE NOT NULL,
-                password_hash TEXT NOT NULL,
-                plan TEXT,
-                expires_at TEXT,
-                created_at TEXT NOT NULL
-            )
-            """
-        )
-        conn.commit()
-        conn.close()
-    else:
-        conn = sqlite3.connect(DB_PATH)
-        conn.execute(
-            """
-            CREATE TABLE IF NOT EXISTS users (
-                id INTEGER PRIMARY KEY AUTOINCREMENT,
-                username TEXT UNIQUE NOT NULL,
-                password_hash TEXT NOT NULL,
-                plan TEXT,
-                expires_at TEXT,
-                created_at TEXT NOT NULL
-            )
-            """
-        )
-        conn.commit()
-        conn.close()
-
-
-init_db()
 
 
 # ---------- вспомогательные функции ----------
@@ -262,19 +266,10 @@ def buy(plan_key):
     return render_template("buy.html", plan=PLANS[plan_key], plan_key=plan_key)
 
 
-# ---------- активация подписки (временно вручную админом после оплаты) ----------
+# ---------- активация подписки ----------
 
 @app.route("/admin/activate", methods=["POST"])
 def admin_activate():
-    """
-    Пример ручной активации после того, как ты проверил оплату.
-    Вызывается так (curl / Postman):
-
-    curl -X POST https://your-site.onrender.com/admin/activate \
-      -d "key=supersecret-change-me&username=Vasya&plan=30"
-
-    plan: 30 | 120 | forever
-    """
     key = request.form.get("key")
     if key != ADMIN_KEY:
         return {"error": "forbidden"}, 403
