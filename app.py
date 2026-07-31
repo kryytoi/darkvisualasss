@@ -18,9 +18,35 @@ from werkzeug.security import generate_password_hash, check_password_hash
 app = Flask(__name__)
 app.secret_key = os.environ.get("SECRET_KEY", "dark_visuals_super_secret_key_2026")
 
-# Вечные сессии (30 дней)
+# Настройки вечных сессий (30 дней)
 app.config["PERMANENT_SESSION_LIFETIME"] = timedelta(days=30)
 app.config["SESSION_COOKIE_HTTPONLY"] = True
+
+# ==========================================
+#  ТАРИФЫ (ДЛЯ ОТОБРАЖЕНИЯ НА ГЛАВНОЙ)
+# ==========================================
+PLANS = {
+    "1_month": {
+        "name": "30 Дней",
+        "price": "149 ₽",
+        "period": "1 месяц",
+        "features": [
+            "Полный доступ к модификации",
+            "Автоматические обновления",
+            "Техническая поддержка"
+        ]
+    },
+    "lifetime": {
+        "name": "Навсегда",
+        "price": "499 ₽",
+        "period": "Навсегда",
+        "features": [
+            "Полный доступ без ограничений",
+            "Приоритетные обновления",
+            "VIP Поддержка"
+        ]
+    }
+}
 
 # ==========================================
 #  НАСТРОЙКИ ДЛЯ КЛЮЧЕЙ МОДА (AES)
@@ -43,7 +69,6 @@ def get_db():
             db_url = db_url.replace("postgres://", "postgresql://", 1)
         return psycopg2.connect(db_url, cursor_factory=RealDictCursor)
     else:
-        print("[WARNING] DATABASE_URL не задан в Render! Данные будут сбрасываться!")
         conn = sqlite3.connect("database.sqlite3")
         conn.row_factory = sqlite3.Row
         return conn
@@ -256,10 +281,10 @@ def get_mod_key():
 @app.route("/")
 def index():
     user = current_user()
-    # Если есть index.html (главная с секцией #features), рендерим её!
     index_path = os.path.join(app.template_folder, "index.html")
     if os.path.exists(index_path):
-        return render_template("index.html", user=user)
+        # Передаем и user, и plans в шаблон index.html!
+        return render_template("index.html", user=user, plans=PLANS)
     return render_template("login.html", user=user)
 
 
