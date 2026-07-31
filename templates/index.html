@@ -1,118 +1,179 @@
 {% extends "base.html" %}
-{% block title %}Dark Visuals — клиент визуалов для Fabric 1.21.4{% endblock %}
+{% block title %}Dark Visuals — визуальные эффекты для Minecraft{% endblock %}
 {% block content %}
 
-<section class="hero">
-  <div class="hero-badge reveal">Fabric 1.21.4 &middot; Клиент визуалов</div>
-  <h1 class="reveal">DARK<span class="accent">VISUALS</span></h1>
-  <p class="hero-sub reveal">
-    Улучшает твою реакцию в PvP и добавляет крутые визуальные эффекты,
-    не ломая производительность сервера. Нажми <kbd>Right Shift</kbd> — и всё меню перед тобой.
-  </p>
-  <div class="hero-actions reveal">
-    {% if user %}
-      <a href="{{ url_for('profile') }}" class="btn btn-glow">Перейти в профиль</a>
-    {% else %}
-      <a href="{{ url_for('register') }}" class="btn btn-glow">Начать бесплатно</a>
-    {% endif %}
-    <a href="#showcase" class="btn btn-outline">Смотреть интерфейс</a>
-  </div>
+<!-- HERO -->
+<section class="relative pt-40 pb-20 px-6 overflow-hidden">
+  <div class="absolute top-0 left-1/2 -translate-x-1/2 w-[1200px] h-[600px] bg-purple-600/20 blur-[120px] rounded-full opacity-50 pointer-events-none"></div>
 
-  <div class="hero-shot tilt-card reveal" id="hero-shot">
-    <div class="shot-glow"></div>
-    <img src="{{ url_for('static', filename='img/menu.png') }}"
-         alt="Интерфейс Dark Visuals — меню модулей открывается на правый Shift" loading="eager">
-    <div class="shot-caption"><kbd>Right Shift</kbd> — открыть меню визуалов</div>
-  </div>
-</section>
+  <div class="max-w-7xl mx-auto grid lg:grid-cols-2 gap-12 items-center">
+    <div class="hero-fade-left">
+      <div class="inline-flex items-center gap-2 px-4 py-2 rounded-full bg-purple-600/10 border border-purple-500/20 text-purple-400 text-xs font-bold mb-6">
+        <i data-lucide="zap" class="w-3 h-3"></i> FABRIC 1.21.4 &middot; КЛИЕНТ ВИЗУАЛОВ
+      </div>
+      <h1 class="text-6xl md:text-8xl font-black mb-8 leading-[1.1] tracking-tighter">
+        DARK <span class="text-transparent bg-clip-text bg-gradient-to-r from-purple-400 to-purple-700">VISUALS</span>
+      </h1>
+      <p class="text-xl text-neutral-400 mb-10 max-w-lg leading-relaxed">
+        Улучшает твою реакцию в PvP и добавляет крутые визуальные эффекты, не ломая
+        производительность сервера. Нажми <kbd class="px-2 py-1 rounded-md bg-white/10 border border-white/10 text-sm font-mono text-white">Right Shift</kbd> — и всё меню перед тобой.
+      </p>
+      <div class="flex flex-wrap gap-4">
+        <a href="#pricing" class="glow-btn px-8 py-4 rounded-2xl purple-gradient font-bold text-lg transition-all flex items-center gap-2">
+          Выбрать тариф <i data-lucide="chevron-right" class="w-5 h-5"></i>
+        </a>
+        <a href="#showcase" class="px-8 py-4 rounded-2xl bg-neutral-900 border border-white/10 font-bold text-lg hover:bg-neutral-800 transition-all flex items-center gap-2">
+          Смотреть интерфейс
+        </a>
+      </div>
+    </div>
 
-<section id="features" class="section">
-  <div class="section-head reveal">
-    <span class="section-tag">// Возможности</span>
-    <h2>Всё, что нужно для красивого PvP</h2>
-  </div>
-  <div class="features">
-    <div class="feature-card tilt-card reveal">
-      <div class="feature-icon">
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
-          <path d="M14.5 3l6.5 6.5-2 2-1-1-8 8-3 1 1-3 8-8-1-1z"/><path d="M3 21l3-1"/>
-        </svg>
+    <div class="hero-fade-scale relative">
+      <div class="tilt-card relative z-10 rounded-[3rem] overflow-hidden border border-white/10 shadow-2xl">
+        <img src="{{ url_for('static', filename='img/menu.png') }}"
+             alt="Интерфейс Dark Visuals — меню модулей открывается на правый Shift"
+             class="w-full h-auto" loading="eager">
+        <div class="absolute inset-0 bg-gradient-to-t from-black/80 via-transparent to-transparent"></div>
+        <div class="absolute bottom-8 left-8 right-8">
+          <div class="flex items-center gap-4 bg-black/60 backdrop-blur-lg border border-white/10 p-4 rounded-2xl">
+            <div class="w-12 h-12 rounded-xl bg-purple-600 flex items-center justify-center">
+              <i data-lucide="download" class="w-6 h-6 text-white"></i>
+            </div>
+            <div>
+              <div class="text-sm font-bold">10,000+</div>
+              <div class="text-[10px] text-neutral-400 uppercase tracking-widest font-bold">Загрузок</div>
+            </div>
+          </div>
+        </div>
       </div>
-      <h3>PvP-ассистент</h3>
-      <p>Подсказки по таймингу удара, отображение крит-урона и полезные визуальные индикаторы во время боя.</p>
-    </div>
-    <div class="feature-card tilt-card reveal">
-      <div class="feature-icon">
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
-          <path d="M12 3l1.8 4.6L18 9.5l-4.2 1.9L12 16l-1.8-4.6L6 9.5l4.2-1.9L12 3z"/><path d="M19 14l.8 2 2 .8-2 .8-.8 2-.8-2-2-.8 2-.8.8-2z"/>
-        </svg>
-      </div>
-      <h3>Визуальные эффекты</h3>
-      <p>ChinaHat, JumpCircle, Snow, трейлы и подсветка попаданий — бои эффектнее без падения FPS.</p>
-    </div>
-    <div class="feature-card tilt-card reveal">
-      <div class="feature-icon">
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
-          <path d="M12 3l7 3v5c0 4.5-3 8-7 10-4-2-7-5.5-7-10V6l7-3z"/>
-        </svg>
-      </div>
-      <h3>Безопасность</h3>
-      <p>Не использует читерские механики (авто-клик, kill-aura) — только честные визуальные улучшения.</p>
-    </div>
-    <div class="feature-card tilt-card reveal">
-      <div class="feature-icon">
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
-          <rect x="3" y="4" width="18" height="14" rx="2"/><path d="M8 21h8M12 18v3"/>
-        </svg>
-      </div>
-      <h3>Удобное меню</h3>
-      <p>Полноценный интерфейс на правый Shift: поиск, категории, тумблеры и тонкая настройка каждого модуля.</p>
+      <div class="absolute -top-10 -right-10 w-32 h-32 bg-purple-600/30 rounded-full blur-3xl"></div>
+      <div class="absolute -bottom-10 -left-10 w-40 h-40 bg-purple-900/40 rounded-full blur-3xl"></div>
     </div>
   </div>
 </section>
 
-<section id="showcase" class="section">
-  <div class="section-head reveal">
-    <span class="section-tag">// Интерфейс</span>
-    <h2>Меню визуалов — <kbd class="kbd-inline">Right Shift</kbd></h2>
-    <p class="section-sub">HUD, NoRender, Fullbright, Crosshair, ViewModel, TargetEsp, CustomHitBox и другие модули — включаются в один клик.</p>
-  </div>
-  <div class="showcase-shot tilt-card reveal">
-    <div class="shot-glow"></div>
-    <img src="{{ url_for('static', filename='img/menu.png') }}"
-         alt="Полное меню Dark Visuals с модулями HUD, NoRender, Fullbright, Crosshair, ViewModel, TargetEsp" loading="lazy">
-  </div>
-  <div class="module-chips reveal">
-    <span>HUD</span><span>NoRender</span><span>Fullbright</span><span>Crosshair</span>
-    <span>ViewModel</span><span>TargetEsp</span><span>CustomHitBox</span><span>ChinaHat</span>
-    <span>JumpCircle</span><span>Snow</span><span>Aspect Ratio</span><span>UI</span>
+<!-- FEATURES -->
+<section id="features" class="py-24 px-6 relative">
+  <div class="max-w-7xl mx-auto">
+    <div class="text-center mb-20 reveal">
+      <h2 class="text-4xl md:text-5xl font-black mb-6">Всё, что нужно для красивого PvP</h2>
+      <p class="text-neutral-400 max-w-2xl mx-auto">Сочетание производительности и непревзойденного качества графики.</p>
+    </div>
+
+    <div class="grid md:grid-cols-2 lg:grid-cols-4 gap-8">
+      <div class="feature-card tilt-card reveal p-8 rounded-[2rem] bg-neutral-900/30 border border-white/5 hover:border-purple-500/20">
+        <div class="w-14 h-14 rounded-2xl bg-purple-600/10 flex items-center justify-center mb-6">
+          <i data-lucide="swords" class="w-7 h-7 text-purple-500"></i>
+        </div>
+        <h4 class="text-xl font-bold mb-2">PvP-ассистент</h4>
+        <p class="text-neutral-400 text-sm leading-relaxed">Подсказки по таймингу удара, отображение крит-урона и полезные индикаторы во время боя.</p>
+      </div>
+      <div class="feature-card tilt-card reveal p-8 rounded-[2rem] bg-neutral-900/30 border border-white/5 hover:border-purple-500/20">
+        <div class="w-14 h-14 rounded-2xl bg-purple-600/10 flex items-center justify-center mb-6">
+          <i data-lucide="sparkles" class="w-7 h-7 text-purple-500"></i>
+        </div>
+        <h4 class="text-xl font-bold mb-2">Визуальные эффекты</h4>
+        <p class="text-neutral-400 text-sm leading-relaxed">ChinaHat, JumpCircle, Snow, трейлы и подсветка попаданий — бои эффектнее без падения FPS.</p>
+      </div>
+      <div class="feature-card tilt-card reveal p-8 rounded-[2rem] bg-neutral-900/30 border border-white/5 hover:border-purple-500/20">
+        <div class="w-14 h-14 rounded-2xl bg-purple-600/10 flex items-center justify-center mb-6">
+          <i data-lucide="shield-check" class="w-7 h-7 text-purple-500"></i>
+        </div>
+        <h4 class="text-xl font-bold mb-2">Безопасность</h4>
+        <p class="text-neutral-400 text-sm leading-relaxed">Не использует читерские механики (авто-клик, kill-aura) — только честные визуальные улучшения.</p>
+      </div>
+      <div class="feature-card tilt-card reveal p-8 rounded-[2rem] bg-neutral-900/30 border border-white/5 hover:border-purple-500/20">
+        <div class="w-14 h-14 rounded-2xl bg-purple-600/10 flex items-center justify-center mb-6">
+          <i data-lucide="layout-panel-left" class="w-7 h-7 text-purple-500"></i>
+        </div>
+        <h4 class="text-xl font-bold mb-2">Удобное меню</h4>
+        <p class="text-neutral-400 text-sm leading-relaxed">Полноценный интерфейс на Right Shift: поиск, категории, тумблеры и тонкая настройка каждого модуля.</p>
+      </div>
+    </div>
   </div>
 </section>
 
-<section id="pricing" class="section">
-  <div class="section-head reveal">
-    <span class="section-tag">// Цены</span>
-    <h2>Выбери свой план</h2>
-  </div>
-  <div class="pricing">
-    {% for key, plan in plans.items() %}
-      <div class="plan-card tilt-card reveal {% if key == '120' %}highlight{% endif %}">
-        {% if key == '120' %}<span class="badge">Популярно</span>{% endif %}
-        <h3>{{ plan.name }}</h3>
-        <div class="price">{{ plan.price }} <span>₽</span></div>
-        <ul class="plan-perks">
-          <li>Все визуальные модули</li>
-          <li>Меню на Right Shift</li>
-          <li>Обновления мода</li>
-          {% if key == 'forever' %}<li>Без продлений — навсегда</li>{% endif %}
-        </ul>
-        {% if user %}
-          <a href="{{ url_for('buy', plan_key=key) }}" class="btn {% if key == '120' %}btn-glow{% else %}btn-outline{% endif %} full">Купить</a>
-        {% else %}
-          <a href="{{ url_for('register') }}" class="btn {% if key == '120' %}btn-glow{% else %}btn-outline{% endif %} full">Купить</a>
-        {% endif %}
+<!-- SHOWCASE -->
+<section id="showcase" class="py-24 px-6 relative">
+  <div class="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[900px] h-[500px] bg-purple-600/10 blur-[140px] rounded-full pointer-events-none"></div>
+
+  <div class="max-w-7xl mx-auto relative">
+    <div class="text-center mb-16 reveal">
+      <div class="inline-flex items-center gap-2 px-4 py-2 rounded-full bg-purple-600/10 border border-purple-500/20 text-purple-400 text-xs font-bold mb-6">
+        // ИНТЕРФЕЙС
       </div>
-    {% endfor %}
+      <h2 class="text-4xl md:text-5xl font-black mb-6">
+        Меню визуалов — <kbd class="px-3 py-1 rounded-lg bg-white/10 border border-white/10 text-2xl md:text-3xl font-mono align-middle">Right Shift</kbd>
+      </h2>
+      <p class="text-neutral-400 max-w-2xl mx-auto">HUD, NoRender, Fullbright, Crosshair, ViewModel, TargetEsp, CustomHitBox и другие модули — включаются в один клик.</p>
+    </div>
+
+    <div class="tilt-card reveal-scale relative rounded-[3rem] overflow-hidden border border-white/10 shadow-2xl">
+      <img src="{{ url_for('static', filename='img/menu.png') }}"
+           alt="Полное меню Dark Visuals с модулями HUD, NoRender, Fullbright, Crosshair, ViewModel, TargetEsp"
+           class="w-full h-auto" loading="lazy">
+    </div>
+
+    <div class="reveal flex flex-wrap justify-center gap-3 mt-10">
+      {% for mod in ['HUD','NoRender','Fullbright','Crosshair','ViewModel','TargetEsp','CustomHitBox','ChinaHat','JumpCircle','Snow','Aspect Ratio','UI'] %}
+        <span class="px-4 py-2 rounded-full bg-white/5 border border-white/10 text-sm font-medium text-neutral-300">{{ mod }}</span>
+      {% endfor %}
+    </div>
+  </div>
+</section>
+
+<!-- PRICING -->
+<section id="pricing" class="py-24 px-6 relative">
+  <div class="max-w-7xl mx-auto">
+    <div class="text-center mb-20 reveal">
+      <div class="inline-flex items-center gap-2 px-4 py-2 rounded-full bg-purple-600/10 border border-purple-500/20 text-purple-400 text-xs font-bold mb-6">
+        // ЦЕНЫ
+      </div>
+      <h2 class="text-4xl md:text-5xl font-black mb-6">Выбери свой план</h2>
+      <p class="text-neutral-400 max-w-2xl mx-auto">Никаких скрытых платежей — оплата вручную, активация в течение нескольких минут.</p>
+    </div>
+
+    <div class="grid md:grid-cols-3 gap-8 max-w-5xl mx-auto">
+      {% for key, plan in plans.items() %}
+        <div class="tilt-card reveal relative p-8 rounded-[2rem] border {% if key == '120' %}border-purple-500/40 bg-gradient-to-b from-purple-600/10 to-transparent{% else %}border-white/10 bg-neutral-900/30{% endif %} flex flex-col">
+          {% if key == '120' %}
+            <span class="absolute -top-4 left-1/2 -translate-x-1/2 px-4 py-1 rounded-full purple-gradient text-xs font-bold uppercase tracking-wide">Популярно</span>
+          {% endif %}
+          <h3 class="text-xl font-bold mb-4">{{ plan.name }}</h3>
+          <div class="flex items-end gap-1 mb-8">
+            <span class="text-5xl font-black">{{ plan.price }}</span>
+            <span class="text-xl font-bold text-neutral-400 mb-1">₽</span>
+          </div>
+          <ul class="space-y-3 mb-10 flex-1">
+            <li class="flex items-center gap-3 text-sm text-neutral-300">
+              <i data-lucide="check" class="w-4 h-4 text-purple-500"></i> Все визуальные модули
+            </li>
+            <li class="flex items-center gap-3 text-sm text-neutral-300">
+              <i data-lucide="check" class="w-4 h-4 text-purple-500"></i> Меню на Right Shift
+            </li>
+            <li class="flex items-center gap-3 text-sm text-neutral-300">
+              <i data-lucide="check" class="w-4 h-4 text-purple-500"></i> Обновления мода
+            </li>
+            {% if key == 'forever' %}
+              <li class="flex items-center gap-3 text-sm text-neutral-300">
+                <i data-lucide="check" class="w-4 h-4 text-purple-500"></i> Без продлений — навсегда
+              </li>
+            {% endif %}
+          </ul>
+          {% if user %}
+            <a href="{{ url_for('buy', plan_key=key) }}"
+               class="glow-btn text-center px-6 py-4 rounded-2xl font-bold transition-all {% if key == '120' %}purple-gradient{% else %}bg-white/5 border border-white/10 hover:bg-white/10{% endif %}">
+              Купить
+            </a>
+          {% else %}
+            <a href="{{ url_for('register') }}"
+               class="glow-btn text-center px-6 py-4 rounded-2xl font-bold transition-all {% if key == '120' %}purple-gradient{% else %}bg-white/5 border border-white/10 hover:bg-white/10{% endif %}">
+              Купить
+            </a>
+          {% endif %}
+        </div>
+      {% endfor %}
+    </div>
   </div>
 </section>
 

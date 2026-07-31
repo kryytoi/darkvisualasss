@@ -1,67 +1,97 @@
 <!DOCTYPE html>
 <html lang="ru">
 <head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>{% block title %}Dark Visuals{% endblock %}</title>
-  <meta name="description" content="Dark Visuals — клиент визуалов для Fabric 1.21.4. Открой меню на правый Shift.">
-  <link rel="icon" href="{{ url_for('static', filename='img/logo.png') }}" type="image/png">
-  <link rel="preconnect" href="https://fonts.googleapis.com">
-  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link href="https://fonts.googleapis.com/css2?family=Unbounded:wght@500;700;900&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
-  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>{% block title %}Dark Visuals — визуальные эффекты для Minecraft{% endblock %}</title>
+<meta name="description" content="Dark Visuals — клиент визуалов для Fabric 1.21.4. Открой меню на правый Shift.">
+<link rel="icon" href="{{ url_for('static', filename='img/logo.png') }}" type="image/png">
+
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&display=swap" rel="stylesheet">
+<script src="https://cdn.tailwindcss.com"></script>
+<script src="https://unpkg.com/lucide@latest"></script>
+<link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
 </head>
-<body>
-  <div class="bg-scene" aria-hidden="true">
-    <div class="orb orb-1"></div>
-    <div class="orb orb-2"></div>
-    <div class="orb orb-3"></div>
-    <div class="grid-floor"></div>
-    <div class="stars"></div>
+<body class="min-h-screen bg-[#050505] text-white">
+
+<!-- NAVBAR -->
+<nav class="fixed top-0 left-0 right-0 z-50 px-6 py-6">
+  <div class="max-w-7xl mx-auto flex items-center justify-between bg-black/40 backdrop-blur-xl border border-white/10 rounded-[2rem] px-8 py-4">
+    <a href="{{ url_for('index') }}" class="flex items-center gap-3">
+      <div class="w-10 h-10 rounded-xl overflow-hidden shadow-[0_0_15px_rgba(168,85,247,0.5)]">
+        <img src="{{ url_for('static', filename='img/logo.png') }}" alt="Dark Visuals" class="w-full h-full object-cover">
+      </div>
+      <span class="text-xl font-bold tracking-tight text-glow">DARK VISUALS</span>
+    </a>
+
+    <div class="hidden md:flex items-center gap-8">
+      <a href="{{ url_for('index') }}#features" class="text-sm font-medium text-neutral-400 hover:text-purple-400 transition-colors">Функции</a>
+      <a href="{{ url_for('index') }}#showcase" class="text-sm font-medium text-neutral-400 hover:text-purple-400 transition-colors">Интерфейс</a>
+      <a href="{{ url_for('index') }}#pricing" class="text-sm font-medium text-neutral-400 hover:text-purple-400 transition-colors">Прайс-лист</a>
+    </div>
+
+    {% if user %}
+      <a href="{{ url_for('profile') }}" class="hidden md:block px-6 py-2 rounded-full purple-gradient text-sm font-semibold hover:shadow-[0_0_20px_rgba(168,85,247,0.5)] transition-all">
+        Профиль
+      </a>
+    {% else %}
+      <a href="{{ url_for('login') }}" class="hidden md:block px-6 py-2 rounded-full bg-white/5 border border-white/10 text-sm font-semibold hover:bg-white/10 transition-colors">
+        Войти
+      </a>
+    {% endif %}
+
+    <button id="menuBtn" class="md:hidden text-white">
+      <i data-lucide="menu" id="menuIconOpen" class="w-6 h-6"></i>
+      <i data-lucide="x" id="menuIconClose" class="w-6 h-6 hidden"></i>
+    </button>
   </div>
 
-  <header class="site-header">
-    <a href="{{ url_for('index') }}" class="logo">
-      <span class="logo-mark"><img src="{{ url_for('static', filename='img/logo.png') }}" alt=""></span>
-      <span class="logo-text">Dark<em>Visuals</em></span>
-    </a>
-    <nav>
-      <a href="{{ url_for('index') }}#features">Возможности</a>
-      <a href="{{ url_for('index') }}#showcase">Интерфейс</a>
-      <a href="{{ url_for('index') }}#pricing">Цены</a>
-      {% if user %}
-        <a href="{{ url_for('profile') }}" class="nav-btn">Профиль</a>
-        <a href="{{ url_for('logout') }}" class="nav-ghost">Выйти</a>
-      {% else %}
-        <a href="{{ url_for('login') }}" class="nav-ghost">Войти</a>
-        <a href="{{ url_for('register') }}" class="nav-btn">Регистрация</a>
-      {% endif %}
-    </nav>
-  </header>
+  <div id="mobileMenu" class="mobile-menu hidden absolute top-24 left-6 right-6 bg-neutral-900 border border-white/10 rounded-3xl p-6 flex-col gap-4 md:hidden">
+    <a href="{{ url_for('index') }}#features" class="text-lg font-medium">Функции</a>
+    <a href="{{ url_for('index') }}#showcase" class="text-lg font-medium">Интерфейс</a>
+    <a href="{{ url_for('index') }}#pricing" class="text-lg font-medium">Прайс-лист</a>
+    {% if user %}
+      <a href="{{ url_for('profile') }}" class="w-full text-center py-4 rounded-2xl purple-gradient font-bold">Профиль</a>
+      <a href="{{ url_for('logout') }}" class="w-full text-center py-3 rounded-2xl bg-white/5 border border-white/10 font-bold">Выйти</a>
+    {% else %}
+      <a href="{{ url_for('register') }}" class="w-full text-center py-4 rounded-2xl purple-gradient font-bold">Регистрация</a>
+      <a href="{{ url_for('login') }}" class="w-full text-center py-3 rounded-2xl bg-white/5 border border-white/10 font-bold">Войти</a>
+    {% endif %}
+  </div>
+</nav>
 
-  <main>
-    {% with messages = get_flashed_messages(with_categories=true) %}
-      {% if messages %}
-        <div class="flash-stack">
-        {% for category, message in messages %}
-          <div class="flash {{ category }}">{{ message }}</div>
-        {% endfor %}
-        </div>
-      {% endif %}
-    {% endwith %}
-
-    {% block content %}{% endblock %}
-  </main>
-
-  <footer class="site-footer">
-    <div class="footer-inner">
-      <span class="logo-text small">Dark<em>Visuals</em></span>
-      <span>© 2026 Dark Visuals — сделан для Fabric 1.21.4</span>
-      <span class="kbd-hint">Меню в игре: <kbd>Right Shift</kbd></span>
+{% with messages = get_flashed_messages(with_categories=true) %}
+  {% if messages %}
+    <div class="flash-stack">
+    {% for category, message in messages %}
+      <div class="flash {{ category }}">{{ message }}</div>
+    {% endfor %}
     </div>
-  </footer>
+  {% endif %}
+{% endwith %}
 
-  <script src="{{ url_for('static', filename='js/main.js') }}" defer></script>
+<main>
+  {% block content %}{% endblock %}
+</main>
+
+<!-- FOOTER -->
+<footer class="px-6 py-12 border-t border-white/5">
+  <div class="max-w-7xl mx-auto flex flex-col md:flex-row items-center justify-between gap-4 text-sm text-neutral-500">
+    <div class="flex items-center gap-2">
+      <div class="w-7 h-7 rounded-lg overflow-hidden">
+        <img src="{{ url_for('static', filename='img/logo.png') }}" alt="" class="w-full h-full object-cover">
+      </div>
+      <span class="font-bold text-white">DARK VISUALS</span>
+    </div>
+    <span>&copy; 2026 Dark Visuals — сделан для Fabric 1.21.4</span>
+    <span class="flex items-center gap-2">
+      Меню в игре: <kbd class="px-2 py-1 rounded-md bg-white/5 border border-white/10 text-xs font-mono">Right Shift</kbd>
+    </span>
+  </div>
+</footer>
+
+<script src="{{ url_for('static', filename='js/main.js') }}" defer></script>
 </body>
 </html>
