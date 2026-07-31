@@ -2,12 +2,10 @@
 
 {% block content %}
 <style>
-    /* Стили для личного кабинета Dark Visuals */
     .profile-wrapper {
         display: flex;
         max-width: 1100px;
         min-height: 580px;
-        /* Отодвигаем профиль вниз от фиксированной шапки сайта */
         margin: 120px auto 60px auto;
         background: #0d0d12;
         border: 1px solid #1a1a26;
@@ -18,7 +16,6 @@
         box-shadow: 0 20px 40px rgba(0, 0, 0, 0.6);
     }
 
-    /* Сайдбар */
     .sidebar {
         width: 240px;
         background: #111118;
@@ -72,7 +69,6 @@
         stroke: #ffffff;
     }
 
-    /* Активный пункт меню */
     .nav-item.active {
         color: #a78bfa;
         background: rgba(167, 139, 250, 0.08);
@@ -94,7 +90,6 @@
         border-radius: 0 4px 4px 0;
     }
 
-    /* Нижний блок сайдбара */
     .sidebar-footer {
         padding: 0 12px;
         display: flex;
@@ -104,7 +99,6 @@
         padding-top: 15px;
     }
 
-    /* Контентная часть */
     .content-area {
         flex: 1;
         padding: 30px 35px;
@@ -126,7 +120,6 @@
         to { opacity: 1; transform: translateY(0); }
     }
 
-    /* Карточки и элементы */
     .section-title {
         font-size: 18px;
         font-weight: 700;
@@ -141,6 +134,30 @@
         border-radius: 12px;
         padding: 20px 24px;
         margin-bottom: 20px;
+    }
+
+    .faq-card {
+        background: #13131c;
+        border: 1px solid #1f1f2e;
+        border-radius: 12px;
+        padding: 18px 22px;
+        margin-bottom: 14px;
+    }
+
+    .faq-question {
+        font-size: 15px;
+        font-weight: 600;
+        color: #a78bfa;
+        margin-bottom: 8px;
+        display: flex;
+        align-items: center;
+        gap: 8px;
+    }
+
+    .faq-answer {
+        font-size: 14px;
+        color: #cbd5e1;
+        line-height: 1.5;
     }
 
     .info-row {
@@ -240,7 +257,7 @@
 </style>
 
 <div class="profile-wrapper">
-    <!-- Боковое меню (Сайдбар) -->
+    <!-- Сайдбар -->
     <div class="sidebar">
         <div class="sidebar-menu">
             <div class="nav-item active" onclick="switchTab('account', this)">
@@ -261,6 +278,11 @@
             <div class="nav-item" onclick="switchTab('resourcepacks', this)">
                 <svg viewBox="0 0 24 24"><path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"></path><polyline points="3.27 6.96 12 12.01 20.73 6.96"></polyline><line x1="12" y1="22.08" x2="12" y2="12"></line></svg>
                 Ресурс-паки
+            </div>
+
+            <div class="nav-item" onclick="switchTab('faq', this)">
+                <svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"></circle><path d="M9.09 9a3 3 0 0 1 5.83 1c0 2-3 3-3 3"></path><line x1="12" y1="17" x2="12.01" y2="17"></line></svg>
+                FAQ
             </div>
 
             <div class="nav-item" onclick="switchTab('help', this)">
@@ -385,14 +407,40 @@
             </div>
         </div>
 
-        <!-- 5. ВКЛАДКА: НАСТРОЙКИ И ПОМОЩЬ -->
+        <!-- 5. ВКЛАДКА: FAQ -->
+        <div id="tab-faq" class="tab-content">
+            <h2 class="section-title">Часто задаваемые вопросы (FAQ)</h2>
+            
+            <div class="faq-card">
+                <div class="faq-question">❓ Разрешён ли клиент на серверах?</div>
+                <div class="faq-answer">
+                    <strong>Ответ от MrDarko:</strong> Конечно! Dark Visuals это не чит клиент! В нём нет чит - функций!
+                </div>
+            </div>
+
+            <div class="faq-card">
+                <div class="faq-question">❓ Забанят ли меня за использование клиента?</div>
+                <div class="faq-answer">
+                    <strong>Ответ от MrDarko:</strong> Нет конечно! В нашем клиенте нет чит-функций которые запрещены на сервере! Только легит!
+                </div>
+            </div>
+
+            <div class="faq-card">
+                <div class="faq-question">❓ Безопасен ли клиент?</div>
+                <div class="faq-answer">
+                    Да! В нашем клиенте нет вирусов или троянов!
+                </div>
+            </div>
+        </div>
+
+        <!-- 6. ВКЛАДКА: НАСТРОЙКИ И ПОМОЩЬ -->
         <div id="tab-help" class="tab-content">
             <h2 class="section-title">Настройки и помощь</h2>
             
             <div class="card">
                 <h3 style="margin-top: 0; font-size: 15px; color: #fff;">🎮 Инструкция по запуску</h3>
                 <p style="color: #8b8b9e; font-size: 13px; line-height: 1.6; margin-bottom: 0;">
-                    Для открытия игрового меню клиента используйте клавишу: <br>
+                    Для открытия игрового меню чит-клиента используйте клавишу: <br>
                     <span style="display: inline-block; margin-top: 8px; background: #1a1a26; color: #a78bfa; padding: 5px 12px; border-radius: 6px; font-weight: 600; border: 1px solid #28283d;">Right Shift (Правый Shift)</span>
                 </p>
             </div>
