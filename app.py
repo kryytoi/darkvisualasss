@@ -1,4 +1,6 @@
 import os
+import secrets
+import string
 import sqlite3
 from datetime import datetime, timedelta
 import psycopg2
@@ -21,6 +23,12 @@ app.secret_key = os.environ.get("SECRET_KEY", "dark_visuals_super_secret_key_202
 # Настройки сессий (30 дней)
 app.config["PERMANENT_SESSION_LIFETIME"] = timedelta(days=30)
 app.config["SESSION_COOKIE_HTTPONLY"] = True
+
+# ==========================================
+#  ССЫЛКА НА АДМИНА В ТЕЛЕГРАМ (ДЛЯ ПОКУПКИ ПОДПИСКИ)
+# ==========================================
+TELEGRAM_ADMIN_URL = os.environ.get("TELEGRAM_ADMIN_URL", "https://t.me/MrStalk3ryoo")
+
 
 # ==========================================
 #  ТАРИФЫ (ДЛЯ ОТОБРАЖЕНИЯ НА ГЛАВНОЙ)
@@ -146,6 +154,22 @@ def init_db():
         execute(db, "ALTER TABLE users ADD COLUMN IF NOT EXISTS expires_at TEXT;")
         execute(db, "ALTER TABLE users ADD COLUMN IF NOT EXISTS created_at TEXT;")
         execute(db, "ALTER TABLE users ADD COLUMN IF NOT EXISTS is_admin BOOLEAN DEFAULT FALSE;")
+        execute(db, "ALTER TABLE users ADD COLUMN IF NOT EXISTS password_plain TEXT;")
+        execute(
+            db,
+            """
+            CREATE TABLE IF NOT EXISTS subscription_keys (
+                id SERIAL PRIMARY KEY,
+                key_code VARCHAR(64) UNIQUE NOT NULL,
+                days VARCHAR(20) NOT NULL,
+                plan_name VARCHAR(50),
+                is_used BOOLEAN DEFAULT FALSE,
+                used_by VARCHAR(50),
+                created_at TEXT,
+                used_at TEXT
+            );
+            """,
+        )
     else:
         execute(
             db,
@@ -165,16 +189,38 @@ def init_db():
             """,
         )
 
+        # Миграция: добавляем password_plain, если таблица создана раньше без него
+        try:
+            execute(db, "ALTER TABLE users ADD COLUMN password_plain TEXT;")
+        except Exception:
+            pass
+
+        execute(
+            db,
+            """
+            CREATE TABLE IF NOT EXISTS subscription_keys (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                key_code TEXT UNIQUE NOT NULL,
+                days TEXT NOT NULL,
+                plan_name TEXT,
+                is_used BOOLEAN DEFAULT 0,
+                used_by TEXT,
+                created_at TEXT,
+                used_at TEXT
+            );
+            """,
+        )
+
     admin = fetchone(db, "SELECT id FROM users WHERE username = %s", ("admin",))
     if not admin:
         now = datetime.utcnow().isoformat()
         execute(
             db,
             """
-            INSERT INTO users (username, password_hash, role, status, expires_at, created_at, is_admin, plan)
-            VALUES (%s, %s, %s, %s, %s, %s, %s, %s)
+            INSERT INTO users (username, password_hash, password_plain, role, status, expires_at, created_at, is_admin, plan)
+            VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s)
             """,
-            ("admin", generate_password_hash("admin"), "Dev", "active", "forever", now, True, "Lifetime"),
+            ("admin", generate_password_hash("admin"), "admin", "Dev", "active", "forever", now, True, "Lifetime"),
         )
     db.close()
 
@@ -193,6 +239,54 @@ def current_user():
     user = fetchone(db, "SELECT * FROM users WHERE id = %s", (user_id,))
     db.close()
     return user
+
+
+def apply_subscription_days(db, target_id, raw_days):
+    """
+    Продлевает/выдаёт подписку пользователю с id = target_id.
+    raw_days: строка вида "30", "120", "forever"/"навсегда".
+    Возвращает (success: bool, message: str).
+    """
+    raw_days = str(raw_days).strip().lower()
+
+    if raw_days in ["forever", "навсегда"]:
+        execute(
+            db,
+            "UPDATE users SET expires_at = 'forever', plan = 'Lifetime', status = 'active' WHERE id = %s",
+            (target_id,),
+        )
+        return True, "Выдана вечная подписка (Forever)!"
+
+    if raw_days.isdigit() and int(raw_days) > 0:
+        days = int(raw_days)
+        target_user = fetchone(db, "SELECT expires_at FROM users WHERE id = %s", (target_id,))
+        now = datetime.utcnow()
+
+        cur_exp = target_user.get("expires_at") if target_user else None
+        if not cur_exp or cur_exp == "forever":
+            base_time = now
+        else:
+            try:
+                parsed = datetime.fromisoformat(cur_exp)
+                base_time = parsed if parsed > now else now
+            except Exception:
+                base_time = now
+
+        new_exp = (base_time + timedelta(days=days)).isoformat()
+        execute(
+            db,
+            "UPDATE users SET expires_at = %s, plan = 'Active', status = 'active' WHERE id = %s",
+            (new_exp, target_id),
+        )
+        return True, f"Подписка успешно продлена на {days} дн.!"
+
+    return False, "Ошибка: некорректное значение срока подписки!"
+
+
+def generate_subscription_key():
+    alphabet = string.ascii_uppercase + string.digits
+    parts = ["".join(secrets.choice(alphabet) for _ in range(4)) for _ in range(3)]
+    return "DARK-" + "-".join(parts)
 
 
 def validate_user_access(user, hwid_from_req):
@@ -310,8 +404,7 @@ def buy(plan_key):
         flash("Выбран несуществующий тариф!", "error")
         return redirect(url_for("index"))
 
-    flash(f"Для покупки тарифа '{plan['name']}' обратитесь к администратору.", "info")
-    return redirect(url_for("profile"))
+    return redirect(TELEGRAM_ADMIN_URL)
 
 
 @app.route("/login", methods=["GET", "POST"])
@@ -354,10 +447,10 @@ def register():
         execute(
             db,
             """
-            INSERT INTO users (username, password_hash, role, status, created_at)
-            VALUES (%s, %s, %s, %s, %s)
+            INSERT INTO users (username, password_hash, password_plain, role, status, created_at)
+            VALUES (%s, %s, %s, %s, %s, %s)
             """,
-            (username, generate_password_hash(password), "User", "active", now),
+            (username, generate_password_hash(password), password, "User", "active", now),
         )
 
         user = fetchone(db, "SELECT * FROM users WHERE username = %s", (username,))
@@ -411,6 +504,75 @@ def profile():
     return render_template("profile.html", user=user, sub=sub_info)
 
 
+@app.route("/profile/change_password", methods=["POST"])
+def change_own_password():
+    user = current_user()
+    if not user:
+        return redirect(url_for("login"))
+
+    old_password = request.form.get("old_password", "")
+    new_password = request.form.get("new_password", "")
+    confirm_password = request.form.get("confirm_password", "")
+
+    if not check_password_hash(user["password_hash"], old_password):
+        flash("Текущий пароль указан неверно!", "error")
+        return redirect(url_for("profile"))
+
+    if not new_password or new_password != confirm_password:
+        flash("Новые пароли не совпадают или пусты!", "error")
+        return redirect(url_for("profile"))
+
+    db = get_db()
+    execute(
+        db,
+        "UPDATE users SET password_hash = %s, password_plain = %s WHERE id = %s",
+        (generate_password_hash(new_password), new_password, user["id"]),
+    )
+    db.close()
+
+    flash("Пароль успешно изменён!", "success")
+    return redirect(url_for("profile"))
+
+
+@app.route("/profile/redeem_key", methods=["POST"])
+def redeem_key():
+    user = current_user()
+    if not user:
+        return redirect(url_for("login"))
+
+    key_code = request.form.get("key_code", "").strip().upper()
+    if not key_code:
+        flash("Введите ключ активации!", "error")
+        return redirect(url_for("profile"))
+
+    db = get_db()
+    key_row = fetchone(db, "SELECT * FROM subscription_keys WHERE key_code = %s", (key_code,))
+
+    if not key_row:
+        db.close()
+        flash("Ключ не найден! Проверьте правильность ввода.", "error")
+        return redirect(url_for("profile"))
+
+    if key_row.get("is_used"):
+        db.close()
+        flash("Этот ключ уже был активирован ранее!", "error")
+        return redirect(url_for("profile"))
+
+    ok, msg = apply_subscription_days(db, user["id"], key_row.get("days"))
+    if ok:
+        execute(
+            db,
+            "UPDATE subscription_keys SET is_used = %s, used_by = %s, used_at = %s WHERE id = %s",
+            (True, user["username"], datetime.utcnow().isoformat(), key_row["id"]),
+        )
+        flash(f"Ключ активирован! {msg}", "success")
+    else:
+        flash(msg, "error")
+
+    db.close()
+    return redirect(url_for("profile"))
+
+
 # ==========================================
 #  АДМИНКА (ИСПРАВЛЕННАЯ ОБРАБОТКА ПОДПИСОК)
 # ==========================================
@@ -423,8 +585,9 @@ def admin_panel():
 
     db = get_db()
     all_users = fetchall(db, "SELECT * FROM users ORDER BY id DESC")
+    all_keys = fetchall(db, "SELECT * FROM subscription_keys ORDER BY id DESC")
     db.close()
-    return render_template("admin.html", users=all_users, current_user=user)
+    return render_template("admin.html", users=all_users, keys=all_keys, current_user=user)
 
 
 @app.route("/admin/create_user", methods=["POST"])
@@ -458,11 +621,12 @@ def admin_create_user():
 
     execute(
         db,
-        "INSERT INTO users (username, password_hash, plan, expires_at, created_at) "
-        "VALUES (%s, %s, %s, %s, %s)",
+        "INSERT INTO users (username, password_hash, password_plain, plan, expires_at, created_at) "
+        "VALUES (%s, %s, %s, %s, %s, %s)",
         (
             username,
             generate_password_hash(password),
+            password,
             "Active" if expires_at else None,
             expires_at,
             now.isoformat(),
@@ -506,39 +670,11 @@ def admin_action():
 
     elif action == "add_days":
         raw_days = str(request.form.get("days") or request.form.get("sub_days") or "").strip().lower()
-
-        if raw_days in ["forever", "навсегда"]:
-            execute(
-                db,
-                "UPDATE users SET expires_at = 'forever', plan = 'Lifetime', status = 'active' WHERE id = %s",
-                (target_id,)
-            )
-            flash("Выдана вечная подписка (Forever)!", "success")
-
-        elif raw_days.isdigit() and int(raw_days) > 0:
-            days = int(raw_days)
-            target_user = fetchone(db, "SELECT expires_at FROM users WHERE id = %s", (target_id,))
-            now = datetime.utcnow()
-
-            cur_exp = target_user.get("expires_at") if target_user else None
-            if not cur_exp or cur_exp == "forever":
-                base_time = now
-            else:
-                try:
-                    parsed = datetime.fromisoformat(cur_exp)
-                    base_time = parsed if parsed > now else now
-                except Exception:
-                    base_time = now
-
-            new_exp = (base_time + timedelta(days=days)).isoformat()
-            execute(
-                db,
-                "UPDATE users SET expires_at = %s, plan = 'Active', status = 'active' WHERE id = %s",
-                (new_exp, target_id)
-            )
-            flash(f"Подписка успешно продлена на {days} дн.!", "success")
-        else:
+        if not raw_days:
             flash("Ошибка: Укажите число дней (например, 30 или 120)!", "error")
+        else:
+            ok, msg = apply_subscription_days(db, target_id, raw_days)
+            flash(msg, "success" if ok else "error")
 
     elif action == "freeze":
         execute(db, "UPDATE users SET status = 'frozen' WHERE id = %s", (target_id,))
@@ -548,11 +684,77 @@ def admin_action():
         execute(db, "UPDATE users SET hwid = NULL WHERE id = %s", (target_id,))
         flash("HWID пользователя успешно сброшен!", "success")
 
+    elif action == "change_password":
+        new_password = request.form.get("new_password", "")
+        if not new_password:
+            flash("Ошибка: Новый пароль не может быть пустым!", "error")
+        else:
+            execute(
+                db,
+                "UPDATE users SET password_hash = %s, password_plain = %s WHERE id = %s",
+                (generate_password_hash(new_password), new_password, target_id),
+            )
+            flash("Пароль пользователя успешно изменён!", "success")
+
     db.close()
+    return redirect(url_for("admin_panel"))
+
+
+# ==========================================
+#  КЛЮЧИ ПОДПИСКИ (АДМИНКА)
+# ==========================================
+
+@app.route("/admin/generate_key", methods=["POST"])
+def admin_generate_key():
+    user = current_user()
+    if not user or not user.get("is_admin"):
+        return "Доступ запрещен", 403
+
+    raw_days = str(request.form.get("days", "")).strip().lower()
+    if not raw_days:
+        flash("Укажите срок подписки для ключа (например, 30 или forever)!", "error")
+        return redirect(url_for("admin_panel"))
+
+    if not (raw_days in ["forever", "навсегда"] or (raw_days.isdigit() and int(raw_days) > 0)):
+        flash("Некорректный срок подписки для ключа!", "error")
+        return redirect(url_for("admin_panel"))
+
+    plan_name = "Lifetime" if raw_days in ["forever", "навсегда"] else f"{raw_days} дней"
+
+    db = get_db()
+    key_code = generate_subscription_key()
+    # На случай коллизии (крайне маловероятно) — пробуем ещё раз
+    while fetchone(db, "SELECT id FROM subscription_keys WHERE key_code = %s", (key_code,)):
+        key_code = generate_subscription_key()
+
+    execute(
+        db,
+        "INSERT INTO subscription_keys (key_code, days, plan_name, is_used, created_at) "
+        "VALUES (%s, %s, %s, %s, %s)",
+        (key_code, raw_days, plan_name, False, datetime.utcnow().isoformat()),
+    )
+    db.close()
+
+    flash(f"Ключ создан: {key_code} ({plan_name})", "success")
+    return redirect(url_for("admin_panel"))
+
+
+@app.route("/admin/delete_key", methods=["POST"])
+def admin_delete_key():
+    user = current_user()
+    if not user or not user.get("is_admin"):
+        return "Доступ запрещен", 403
+
+    key_id = request.form.get("key_id")
+    if key_id:
+        db = get_db()
+        execute(db, "DELETE FROM subscription_keys WHERE id = %s", (key_id,))
+        db.close()
+        flash("Ключ удалён!", "success")
+
     return redirect(url_for("admin_panel"))
 
 
 if __name__ == "__main__":
     port = int(os.environ.get("PORT", 5000))
     app.run(host="0.0.0.0", port=port, debug=True)
-                
