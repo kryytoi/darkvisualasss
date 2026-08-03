@@ -383,9 +383,20 @@
                 </div>
             </div>
 
-            <a href="{{ url_for('index') }}" class="btn-primary">
+            <a href="https://t.me/MrStalk3ryoo" target="_blank" class="btn-primary">
                 Продлить / Купить подписку
             </a>
+
+            <div class="card" style="margin-top: 20px;">
+                <h3 style="margin-top: 0; font-size: 15px; color: #fff; margin-bottom: 12px;">🔑 Активация по ключу</h3>
+                <p style="color: #8b8b9e; font-size: 13px; margin-bottom: 14px;">
+                    Введите ключ подписки, полученный у администратора, чтобы активировать доступ.
+                </p>
+                <form action="{{ url_for('redeem_key') }}" method="POST" style="display: flex; gap: 10px; max-width: 420px; flex-wrap: wrap;">
+                    <input type="text" name="key_code" class="form-control" placeholder="DARK-XXXX-XXXX-XXXX" required style="flex: 1; min-width: 220px; text-transform: uppercase;">
+                    <button type="submit" class="btn-primary">Активировать</button>
+                </form>
+            </div>
         </div>
 
         <!-- 3. ВКЛАДКА: КОСМЕТИКА -->
@@ -447,7 +458,7 @@
 
             <div class="card">
                 <h3 style="margin-top: 0; font-size: 15px; color: #fff; margin-bottom: 12px;">🔒 Смена пароля</h3>
-                <form action="#" method="POST" style="max-width: 380px;">
+                <form action="{{ url_for('change_own_password') }}" method="POST" style="max-width: 380px;">
                     <div class="form-group">
                         <label>Текущий пароль</label>
                         <input type="password" name="old_password" class="form-control" placeholder="••••••••" required>
