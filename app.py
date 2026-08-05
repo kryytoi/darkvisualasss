@@ -5,6 +5,7 @@ import sqlite3
 from datetime import datetime, timedelta
 import psycopg2
 from psycopg2.extras import RealDictCursor
+from itsdangerous import URLSafeTimedSerializer, BadSignature, SignatureExpired
 from flask import (
     Flask,
     render_template,
@@ -19,6 +20,20 @@ from werkzeug.security import generate_password_hash, check_password_hash
 
 app = Flask(__name__)
 app.secret_key = os.environ.get("SECRET_KEY", "dark_visuals_super_secret_key_2026")
+
+# ==========================================
+#  ПОДПИСАННЫЙ ТОКЕН ДЛЯ session.json (лаунчер -> мод -> /api/verify)
+# ==========================================
+# Используем ОТДЕЛЬНЫЙ сериализатор (не app.session) — это не Flask-сессия
+# в куках, а короткоживущий подписанный токен, который лаунчер кладёт в
+# session.json, а java-часть мода потом сама перепроверяет на /api/verify.
+# salt делает подпись этого токена независимой от обычных Flask-сессий,
+# даже если оба используют один и тот же SECRET_KEY.
+session_serializer = URLSafeTimedSerializer(app.secret_key, salt="darkvisuals-mod-session")
+
+# Сколько секунд лаунчер/мод считают токен свежим без повторной проверки.
+# Совпадает по смыслу с SessionTtlSeconds, которое ждёт LicenseClient.cs.
+SESSION_TTL_SECONDS = int(os.environ.get("SESSION_TTL_SECONDS", "3600"))
 
 # Настройки сессий (30 дней)
 app.config["PERMANENT_SESSION_LIFETIME"] = timedelta(days=30)
