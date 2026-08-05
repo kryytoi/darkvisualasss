@@ -346,10 +346,16 @@ def launcher_login():
         execute(db, "UPDATE users SET hwid = %s WHERE id = %s", (hwid, user["id"]))
 
     db.close()
+
+    # Короткоживущий подписанный токен для мода — без него LicenseGuard.java
+    # не подтвердит /api/verify, и мод не активируется на скопированном jar.
+    session_token = session_serializer.dumps({"username": username, "hwid": hwid})
+
     return jsonify({
         "success": True,
         "message": "Успешная авторизация!",
-        "role": user.get("role", "User")
+        "role": user.get("role", "User"),
+        "sessionToken": session_token
     }), 200
 
 
@@ -376,8 +382,49 @@ def get_mod_key():
     return jsonify({
         "KeyBase64": MOD_AES_KEY_BASE64,
         "IvBase64": MOD_AES_IV_BASE64,
-        "ModUrl": MOD_FILE_URL
+        "ModUrl": MOD_FILE_URL,
+        "SessionTtlSeconds": SESSION_TTL_SECONDS
     }), 200
+
+
+@app.route("/api/verify", methods=["POST"])
+def verify_mod_session():
+    """
+    Дёргается ИЗ САМОГО МОДА (LicenseGuard.java) при каждом запуске игры
+    и раз в SESSION_TTL_SECONDS во время игры. Без этого расшифрованный
+    jar, скопированный на другую машину, работал бы вечно без единой
+    проверки на сервере.
+    """
+    data = request.get_json(force=True, silent=True) or {}
+    username = data.get("login", "")
+    hwid = data.get("hwid", "unknown")
+    token = data.get("sessionToken", "")
+
+    if not username or not token:
+        return jsonify({"valid": False}), 200
+
+    try:
+        payload = session_serializer.loads(token, max_age=SESSION_TTL_SECONDS)
+    except (BadSignature, SignatureExpired):
+        # Токен подделан, просрочен, или подписан другим SECRET_KEY
+        return jsonify({"valid": False}), 200
+
+    # Токен должен быть выдан именно на этот username+hwid — иначе кто-то
+    # просто скопировал session.json на другую машину/аккаунт.
+    if payload.get("username") != username or payload.get("hwid") != hwid:
+        return jsonify({"valid": False}), 200
+
+    db = get_db()
+    user = fetchone(db, "SELECT * FROM users WHERE username = %s", (username,))
+    db.close()
+
+    if not user:
+        return jsonify({"valid": False}), 200
+
+    # Повторная проверка бана/заморозки/подписки/HWID — та же функция,
+    # что уже используется в /api/login и /api/mod-key.
+    is_valid, _ = validate_user_access(user, hwid)
+    return jsonify({"valid": is_valid}), 200
 
 
 # ==========================================
