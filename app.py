@@ -758,6 +758,26 @@ def admin_action():
             )
             flash("Пароль пользователя успешно изменён!", "success")
 
+    elif action == "delete":
+        target = fetchone(db, "SELECT username FROM users WHERE id = %s", (target_id,))
+        if not target:
+            flash("Ошибка: Пользователь не найден!", "error")
+        else:
+            execute(db, "DELETE FROM users WHERE id = %s", (target_id,))
+            flash(f"Пользователь {target['username']} удалён навсегда!", "success")
+            if user.get("id") == target_id:
+                session.clear()
+                db.close()
+                return redirect(url_for("login"))
+
+    elif action == "make_admin":
+        execute(db, "UPDATE users SET is_admin = TRUE WHERE id = %s", (target_id,))
+        flash("Пользователю выданы права администратора!", "success")
+
+    elif action == "remove_admin":
+        execute(db, "UPDATE users SET is_admin = FALSE WHERE id = %s", (target_id,))
+        flash("Права администратора отозваны!", "success")
+
     db.close()
     return redirect(url_for("admin_panel"))
 
