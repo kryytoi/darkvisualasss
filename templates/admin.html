@@ -198,6 +198,31 @@
                             </form>
                             {% endif %}
 
+                            <!-- Выдача / снятие админки -->
+                            {% if u.is_admin %}
+                            <form action="{{ url_for('admin_action') }}" method="POST" style="display: inline;"
+                                  onsubmit="return confirm('Забрать права администратора у {{ u.username }}?');">
+                                <input type="hidden" name="user_id" value="{{ u.id }}">
+                                <input type="hidden" name="action" value="remove_admin">
+                                <button type="submit" style="background: #555; color: #fff; border: none; padding: 4px 8px; border-radius: 4px; cursor: pointer; font-size: 12px;">Забрать админку</button>
+                            </form>
+                            {% else %}
+                            <form action="{{ url_for('admin_action') }}" method="POST" style="display: inline;"
+                                  onsubmit="return confirm('Выдать права администратора {{ u.username }}?');">
+                                <input type="hidden" name="user_id" value="{{ u.id }}">
+                                <input type="hidden" name="action" value="make_admin">
+                                <button type="submit" style="background: #6d28d9; color: #fff; border: none; padding: 4px 8px; border-radius: 4px; cursor: pointer; font-size: 12px;">Выдать админку</button>
+                            </form>
+                            {% endif %}
+
+                            <!-- Удаление навсегда -->
+                            <form action="{{ url_for('admin_action') }}" method="POST" style="display: inline;"
+                                  onsubmit="return confirm('{% if u.id == current_user.id %}Ты точно хочешь удалить СЕБЯ навсегда? Ты потеряешь доступ к админке! Это действие необратимо!{% elif u.is_admin %}Ты точно хочешь удалить АДМИНА {{ u.username }} навсегда? Это действие необратимо!{% else %}Удалить пользователя {{ u.username }} НАВСЕГДА? Это действие необратимо!{% endif %}');">
+                                <input type="hidden" name="user_id" value="{{ u.id }}">
+                                <input type="hidden" name="action" value="delete">
+                                <button type="submit" style="background: #7a0d0d; color: #fff; border: none; padding: 4px 8px; border-radius: 4px; cursor: pointer; font-size: 12px; font-weight: bold;">🗑 Удалить навсегда</button>
+                            </form>
+
                         </div>
                     </td>
                 </tr>
