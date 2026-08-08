@@ -3,7 +3,6 @@
 {% block content %}
 <div class="admin-container" style="max-width: 1200px; margin: 30px auto; padding: 20px; font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; color: #fff;">
     
-    <!-- Заголовок и карточка админа -->
     <div style="display: flex; justify-content: space-between; align-items: center; background: #1a1a24; padding: 20px 30px; border-radius: 12px; margin-bottom: 25px; border: 1px solid #2a2a3a;">
         <h2>⚙️ Панель Администратора</h2>
         <div>
@@ -12,7 +11,6 @@
         </div>
     </div>
 
-    <!-- Уведомления (Flash messages) -->
     {% with messages = get_flashed_messages(with_categories=true) %}
       {% if messages %}
         <div style="margin-bottom: 20px;">
@@ -29,7 +27,6 @@
       {% endif %}
     {% endwith %}
 
-    <!-- Блок создания нового пользователя -->
     <div style="background: #1a1a24; padding: 25px; border-radius: 12px; margin-bottom: 30px; border: 1px solid #2a2a3a;">
         <h3 style="margin-top: 0; margin-bottom: 15px;">➕ Создать нового пользователя</h3>
         <form action="{{ url_for('admin_create_user') }}" method="POST" style="display: flex; gap: 15px; flex-wrap: wrap; align-items: center;">
@@ -40,7 +37,6 @@
         </form>
     </div>
 
-    <!-- Блок генерации ключей подписки -->
     <div style="background: #1a1a24; padding: 25px; border-radius: 12px; margin-bottom: 30px; border: 1px solid #2a2a3a;">
         <h3 style="margin-top: 0; margin-bottom: 15px;">🔑 Сгенерировать ключ подписки</h3>
         <form action="{{ url_for('admin_generate_key') }}" method="POST" style="display: flex; gap: 15px; flex-wrap: wrap; align-items: center;">
@@ -89,7 +85,6 @@
         {% endif %}
     </div>
 
-    <!-- Таблица пользователей -->
     <div style="background: #1a1a24; padding: 25px; border-radius: 12px; border: 1px solid #2a2a3a; overflow-x: auto;">
         <h3 style="margin-top: 0; margin-bottom: 20px;">👥 Список пользователей ({{ users|length }})</h3>
         
@@ -157,7 +152,6 @@
                     <td style="padding: 12px;">
                         <div style="display: flex; gap: 8px; flex-wrap: wrap; align-items: center;">
                             
-                            <!-- Выдать / Продлить подписку -->
                             <form action="{{ url_for('admin_action') }}" method="POST" style="display: flex; gap: 5px;">
                                 <input type="hidden" name="user_id" value="{{ u.id }}">
                                 <input type="hidden" name="action" value="add_days">
@@ -165,7 +159,6 @@
                                 <button type="submit" style="background: #2e7d32; color: #fff; border: none; padding: 4px 8px; border-radius: 4px; cursor: pointer; font-size: 12px;">+ Выдать</button>
                             </form>
 
-                            <!-- Сброс HWID -->
                             {% if u.hwid %}
                             <form action="{{ url_for('admin_action') }}" method="POST" style="display: inline;">
                                 <input type="hidden" name="user_id" value="{{ u.id }}">
@@ -174,7 +167,6 @@
                             </form>
                             {% endif %}
 
-                            <!-- Бан / Разбан -->
                             {% if u.status == 'banned' %}
                             <form action="{{ url_for('admin_action') }}" method="POST" style="display: inline;">
                                 <input type="hidden" name="user_id" value="{{ u.id }}">
@@ -189,7 +181,6 @@
                             </form>
                             {% endif %}
 
-                            <!-- Заморозка -->
                             {% if u.status != 'frozen' and u.status != 'banned' %}
                             <form action="{{ url_for('admin_action') }}" method="POST" style="display: inline;">
                                 <input type="hidden" name="user_id" value="{{ u.id }}">
@@ -198,7 +189,6 @@
                             </form>
                             {% endif %}
 
-                            <!-- Выдача / снятие админки -->
                             {% if u.is_admin %}
                             <form action="{{ url_for('admin_action') }}" method="POST" style="display: inline;"
                                   onsubmit="return confirm('Забрать права администратора у {{ u.username }}?');">
@@ -215,7 +205,6 @@
                             </form>
                             {% endif %}
 
-                            <!-- Удаление навсегда -->
                             <form action="{{ url_for('admin_action') }}" method="POST" style="display: inline;"
                                   onsubmit="return confirm('{% if u.id == current_user.id %}Ты точно хочешь удалить СЕБЯ навсегда? Ты потеряешь доступ к админке! Это действие необратимо!{% elif u.is_admin %}Ты точно хочешь удалить АДМИНА {{ u.username }} навсегда? Это действие необратимо!{% else %}Удалить пользователя {{ u.username }} НАВСЕГДА? Это действие необратимо!{% endif %}');">
                                 <input type="hidden" name="user_id" value="{{ u.id }}">
