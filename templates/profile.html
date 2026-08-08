@@ -1,498 +1,111 @@
 {% extends "base.html" %}
-
+{% block title %}Вход и регистрация — Dark Visuals{% endblock %}
 {% block content %}
-<style>
-    .profile-wrapper {
-        display: flex;
-        max-width: 1100px;
-        min-height: 580px;
-        margin: 120px auto 60px auto;
-        background: #0d0d12;
-        border: 1px solid #1a1a26;
-        border-radius: 16px;
-        overflow: hidden;
-        font-family: 'Inter', 'Segoe UI', sans-serif;
-        color: #c9d1d9;
-        box-shadow: 0 20px 40px rgba(0, 0, 0, 0.6);
-    }
 
-    .sidebar {
-        width: 240px;
-        background: #111118;
-        border-right: 1px solid #1a1a26;
-        display: flex;
-        flex-direction: column;
-        justify-content: space-between;
-        padding: 20px 0;
-        flex-shrink: 0;
-    }
+<section class="relative min-h-screen flex items-center justify-center px-6 pt-32 pb-20 overflow-hidden">
+  <div class="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[700px] h-[500px] bg-purple-600/15 blur-[130px] rounded-full pointer-events-none"></div>
 
-    .sidebar-menu {
-        display: flex;
-        flex-direction: column;
-        gap: 4px;
-        padding: 0 12px;
-    }
-
-    .nav-item {
-        display: flex;
-        align-items: center;
-        gap: 12px;
-        padding: 12px 16px;
-        color: #8b8b9e;
-        text-decoration: none;
-        font-size: 14px;
-        font-weight: 500;
-        border-radius: 8px;
-        cursor: pointer;
-        transition: all 0.2s ease;
-        position: relative;
-    }
-
-    .nav-item svg {
-        width: 18px;
-        height: 18px;
-        stroke: #8b8b9e;
-        fill: none;
-        stroke-width: 2;
-        stroke-linecap: round;
-        stroke-linejoin: round;
-        transition: stroke 0.2s;
-    }
-
-    .nav-item:hover {
-        color: #ffffff;
-        background: rgba(255, 255, 255, 0.03);
-    }
-
-    .nav-item:hover svg {
-        stroke: #ffffff;
-    }
-
-    .nav-item.active {
-        color: #a78bfa;
-        background: rgba(167, 139, 250, 0.08);
-        font-weight: 600;
-    }
-
-    .nav-item.active svg {
-        stroke: #a78bfa;
-    }
-
-    .nav-item.active::before {
-        content: '';
-        position: absolute;
-        left: -12px;
-        top: 20%;
-        height: 60%;
-        width: 3px;
-        background: #a78bfa;
-        border-radius: 0 4px 4px 0;
-    }
-
-    .sidebar-footer {
-        padding: 0 12px;
-        display: flex;
-        flex-direction: column;
-        gap: 6px;
-        border-top: 1px solid #1a1a26;
-        padding-top: 15px;
-    }
-
-    .content-area {
-        flex: 1;
-        padding: 30px 35px;
-        background: #0d0d12;
-        overflow-y: auto;
-    }
-
-    .tab-content {
-        display: none;
-        animation: fadeIn 0.2s ease-in-out;
-    }
-
-    .tab-content.active {
-        display: block;
-    }
-
-    @keyframes fadeIn {
-        from { opacity: 0; transform: translateY(4px); }
-        to { opacity: 1; transform: translateY(0); }
-    }
-
-    .section-title {
-        font-size: 18px;
-        font-weight: 700;
-        color: #fff;
-        margin-top: 0;
-        margin-bottom: 20px;
-    }
-
-    .card {
-        background: #13131c;
-        border: 1px solid #1f1f2e;
-        border-radius: 12px;
-        padding: 20px 24px;
-        margin-bottom: 20px;
-    }
-
-    .faq-card {
-        background: #13131c;
-        border: 1px solid #1f1f2e;
-        border-radius: 12px;
-        padding: 18px 22px;
-        margin-bottom: 14px;
-    }
-
-    .faq-question {
-        font-size: 15px;
-        font-weight: 600;
-        color: #a78bfa;
-        margin-bottom: 8px;
-        display: flex;
-        align-items: center;
-        gap: 8px;
-    }
-
-    .faq-answer {
-        font-size: 14px;
-        color: #cbd5e1;
-        line-height: 1.5;
-    }
-
-    .info-row {
-        display: flex;
-        justify-content: space-between;
-        align-items: center;
-        padding: 10px 0;
-        border-bottom: 1px solid #1a1a28;
-    }
-
-    .info-row:last-child {
-        border-bottom: none;
-    }
-
-    .info-label {
-        color: #6c6c80;
-        font-size: 13px;
-    }
-
-    .info-value {
-        color: #ffffff;
-        font-size: 13px;
-        font-weight: 500;
-    }
-
-    .hwid-box {
-        background: #09090e;
-        border: 1px solid #1a1a26;
-        padding: 6px 10px;
-        border-radius: 6px;
-        font-family: monospace;
-        font-size: 11px;
-        color: #a78bfa;
-    }
-
-    .btn-primary {
-        display: inline-flex;
-        align-items: center;
-        justify-content: center;
-        gap: 8px;
-        background: linear-gradient(135deg, #7c3aed, #6d28d9);
-        color: #fff;
-        text-decoration: none;
-        padding: 10px 20px;
-        border-radius: 8px;
-        font-weight: 600;
-        font-size: 13px;
-        border: none;
-        cursor: pointer;
-        transition: 0.2s;
-    }
-
-    .btn-primary:hover {
-        opacity: 0.9;
-        transform: translateY(-1px);
-    }
-
-    .placeholder-card {
-        border: 1px dashed #262638;
-        background: #111118;
-        border-radius: 12px;
-        padding: 50px 20px;
-        text-align: center;
-    }
-
-    .placeholder-card svg {
-        stroke: #4c4c66;
-        margin-bottom: 12px;
-    }
-
-    .form-group {
-        margin-bottom: 12px;
-    }
-
-    .form-group label {
-        display: block;
-        color: #8b8b9e;
-        font-size: 12px;
-        margin-bottom: 5px;
-    }
-
-    .form-control {
-        width: 100%;
-        box-sizing: border-box;
-        background: #09090e;
-        border: 1px solid #222233;
-        color: #fff;
-        padding: 8px 12px;
-        border-radius: 6px;
-        font-size: 13px;
-        outline: none;
-    }
-
-    .form-control:focus {
-        border-color: #7c3aed;
-    }
-</style>
-
-<div class="profile-wrapper">
-    <!-- Сайдбар -->
-    <div class="sidebar">
-        <div class="sidebar-menu">
-            <div class="nav-item active" onclick="switchTab('account', this)">
-                <svg viewBox="0 0 24 24"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"></path><circle cx="12" cy="7" r="4"></circle></svg>
-                Аккаунт
-            </div>
-
-            <div class="nav-item" onclick="switchTab('subscription', this)">
-                <svg viewBox="0 0 24 24"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"></polygon></svg>
-                Подписка
-            </div>
-
-            <div class="nav-item" onclick="switchTab('cosmetics', this)">
-                <svg viewBox="0 0 24 24"><path d="M20.38 3.46 16 2a4 4 0 0 1-8 0L3.62 3.46a2 2 0 0 0-1.34 2.23l.58 3.47a1 1 0 0 0 .99.84H6v10a2 2 0 0 0 2 2h8a2 2 0 0 0 2-2V10h2.15a1 1 0 0 0 .99-.84l.58-3.47a2 2 0 0 0-1.34-2.23z"></path></svg>
-                Косметика
-            </div>
-
-            <div class="nav-item" onclick="switchTab('resourcepacks', this)">
-                <svg viewBox="0 0 24 24"><path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"></path><polyline points="3.27 6.96 12 12.01 20.73 6.96"></polyline><line x1="12" y1="22.08" x2="12" y2="12"></line></svg>
-                Ресурс-паки
-            </div>
-
-            <div class="nav-item" onclick="switchTab('faq', this)">
-                <svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"></circle><path d="M9.09 9a3 3 0 0 1 5.83 1c0 2-3 3-3 3"></path><line x1="12" y1="17" x2="12.01" y2="17"></line></svg>
-                FAQ
-            </div>
-
-            <div class="nav-item" onclick="switchTab('help', this)">
-                <svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="3"></circle><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"></path></svg>
-                Настройки & Помощь
-            </div>
-        </div>
-
-        <div class="sidebar-footer">
-            {% if user.is_admin %}
-            <a href="{{ url_for('admin_panel') }}" class="nav-item" style="color: #ef4444;">
-                <svg viewBox="0 0 24 24" style="stroke: #ef4444;"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"></path></svg>
-                Админ Панель
-            </a>
-            {% endif %}
-            
-            <a href="{{ url_for('logout') }}" class="nav-item">
-                <svg viewBox="0 0 24 24"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"></path><polyline points="16 17 21 12 16 7"></polyline><line x1="21" y1="12" x2="9" y2="12"></line></svg>
-                Выйти
-            </a>
-        </div>
+  <div class="reveal-scale in w-full max-w-md relative bg-neutral-900/40 backdrop-blur-xl border border-white/10 rounded-[2.5rem] p-10">
+    <div class="inline-flex items-center gap-2 px-4 py-2 rounded-full bg-purple-600/10 border border-purple-500/20 text-purple-400 text-xs font-bold mb-6">
+      // АККАУНТ
     </div>
 
-    <!-- Область Контента -->
-    <div class="content-area">
-        
-        <!-- Flash Сообщения -->
-        {% with messages = get_flashed_messages(with_categories=true) %}
-          {% if messages %}
-            <div style="margin-bottom: 20px;">
-              {% for category, message in messages %}
-                <div style="padding: 10px 14px; border-radius: 8px; font-size: 13px; margin-bottom: 10px;
-                            {% if category == 'error' %}background: rgba(239, 68, 68, 0.15); color: #f87171; border: 1px solid rgba(239, 68, 68, 0.3);
-                            {% elif category == 'success' %}background: rgba(34, 197, 94, 0.15); color: #4ade80; border: 1px solid rgba(34, 197, 94, 0.3);
-                            {% else %}background: rgba(168, 85, 247, 0.15); color: #c084fc; border: 1px solid rgba(168, 85, 247, 0.3);{% endif %}">
-                  {{ message }}
-                </div>
-              {% endfor %}
-            </div>
-          {% endif %}
-        {% endwith %}
-
-        <!-- 1. ВКЛАДКА: АККАУНТ -->
-        <div id="tab-account" class="tab-content active">
-            <h2 class="section-title">Информация об аккаунте</h2>
-            <div class="card">
-                <div class="info-row">
-                    <span class="info-label">Логин пользователя</span>
-                    <span class="info-value">{{ user.username }}</span>
-                </div>
-                <div class="info-row">
-                    <span class="info-label">Роль в системе</span>
-                    <span class="info-value" style="color: #a78bfa;">
-                        {% if user.is_admin or user.role == 'Dev' %}Администратор{% else %}Пользователь{% endif %}
-                    </span>
-                </div>
-                <div class="info-row">
-                    <span class="info-label">Дата регистрации</span>
-                    <span class="info-value">
-                        {% if user.created_at %}{{ user.created_at[:10] }}{% else %}Не указана{% endif %}
-                    </span>
-                </div>
-                <div class="info-row">
-                    <span class="info-label">Привязанный HWID</span>
-                    <span class="hwid-box">
-                        {% if user.hwid %}{{ user.hwid }}{% else %}Не привязан{% endif %}
-                    </span>
-                </div>
-            </div>
-
-            <div style="margin-top: 20px;">
-                <a href="https://www.dropbox.com/scl/fi/spf52kd44fobbs983dvwf/DarkVisualsLoader.exe?rlkey=50ty74749w9g94gmku9y478iu&st=qns32mgh&dl=1" class="btn-primary" download="DarkVisualsLoader.exe">
-                    <svg viewBox="0 0 24 24" width="16" height="16" stroke="currentColor" fill="none" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path><polyline points="7 10 12 15 17 10"></polyline><line x1="12" y1="15" x2="12" y2="3"></line></svg>
-                    Скачать лаунчер
-                </a>
-            </div>
-        </div>
-
-        <!-- 2. ВКЛАДКА: ПОДПИСКА -->
-        <div id="tab-subscription" class="tab-content">
-            <h2 class="section-title">Состояние подписки</h2>
-            <div class="card">
-                <div class="info-row">
-                    <span class="info-label">Статус доступа</span>
-                    <span class="info-value">
-                        {% if sub and sub.active %}
-                            <span style="color: #4ade80;">Активна</span>
-                        {% else %}
-                            <span style="color: #f87171;">Не активирована</span>
-                        {% endif %}
-                    </span>
-                </div>
-                <div class="info-row">
-                    <span class="info-label">Действует до</span>
-                    <span class="info-value" style="font-weight: 700; color: #a78bfa;">
-                        {% if sub and sub.active %}{{ sub.text }}{% else %}—{% endif %}
-                    </span>
-                </div>
-            </div>
-
-            <a href="https://t.me/MrStalk3ryoo" target="_blank" class="btn-primary">
-                Продлить / Купить подписку
-            </a>
-
-            <div class="card" style="margin-top: 20px;">
-                <h3 style="margin-top: 0; font-size: 15px; color: #fff; margin-bottom: 12px;">🔑 Активация по ключу</h3>
-                <p style="color: #8b8b9e; font-size: 13px; margin-bottom: 14px;">
-                    Введите ключ подписки, полученный у администратора, чтобы активировать доступ.
-                </p>
-                <form action="{{ url_for('redeem_key') }}" method="POST" style="display: flex; gap: 10px; max-width: 420px; flex-wrap: wrap;">
-                    <input type="text" name="key_code" class="form-control" placeholder="DARK-XXXX-XXXX-XXXX" required style="flex: 1; min-width: 220px; text-transform: uppercase;">
-                    <button type="submit" class="btn-primary">Активировать</button>
-                </form>
-            </div>
-        </div>
-
-        <!-- 3. ВКЛАДКА: КОСМЕТИКА -->
-        <div id="tab-cosmetics" class="tab-content">
-            <h2 class="section-title">Кастомная косметика</h2>
-            <div class="placeholder-card">
-                <svg viewBox="0 0 24 24" width="40" height="40" fill="none" stroke-width="1.5"><path d="M14.7 6.3a1 1 0 0 0 0 1.4l1.6 1.6a1 1 0 0 0 1.4 0l3.77-3.77a6 6 0 0 1-7.94 7.94l-6.91 6.91a2.12 2.12 0 0 1-3-3l6.91-6.91a6 6 0 0 1 7.94-7.94l-3.76 3.76z"></path></svg>
-                <div style="font-size: 15px; font-weight: 600; color: #fff;">В разработке..</div>
-                <div style="color: #6c6c80; font-size: 12px; margin-top: 4px;">(Она будет полностью бесплатной)</div>
-            </div>
-        </div>
-
-        <!-- 4. ВКЛАДКА: РЕСУРС-ПАКИ -->
-        <div id="tab-resourcepacks" class="tab-content">
-            <h2 class="section-title">Эксклюзивные ресурс-паки</h2>
-            <div class="placeholder-card">
-                <svg viewBox="0 0 24 24" width="40" height="40" fill="none" stroke-width="1.5"><path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"></path></svg>
-                <div style="font-size: 15px; font-weight: 600; color: #fff;">В разработке</div>
-            </div>
-        </div>
-
-        <!-- 5. ВКЛАДКА: FAQ -->
-        <div id="tab-faq" class="tab-content">
-            <h2 class="section-title">Часто задаваемые вопросы (FAQ)</h2>
-            
-            <div class="faq-card">
-                <div class="faq-question">❓ Разрешён ли клиент на серверах?</div>
-                <div class="faq-answer">
-                    <strong>Ответ от MrDarko:</strong> Конечно! Dark Visuals это не чит клиент! В нём нет чит - функций!
-                </div>
-            </div>
-
-            <div class="faq-card">
-                <div class="faq-question">❓ Забанят ли меня за использование клиента?</div>
-                <div class="faq-answer">
-                    <strong>Ответ от MrDarko:</strong> Нет конечно! В нашем клиенте нет чит-функций которые запрещены на сервере! Только легит!
-                </div>
-            </div>
-
-            <div class="faq-card">
-                <div class="faq-question">❓ Безопасен ли клиент?</div>
-                <div class="faq-answer">
-                    Да! В нашем клиенте нет вирусов или троянов!
-                </div>
-            </div>
-        </div>
-
-        <!-- 6. ВКЛАДКА: НАСТРОЙКИ И ПОМОЩЬ -->
-        <div id="tab-help" class="tab-content">
-            <h2 class="section-title">Настройки и помощь</h2>
-            
-            <div class="card">
-                <h3 style="margin-top: 0; font-size: 15px; color: #fff;">🎮 Инструкция по запуску</h3>
-                <p style="color: #8b8b9e; font-size: 13px; line-height: 1.6; margin-bottom: 0;">
-                    Для открытия игрового меню чит-клиента используйте клавишу: <br>
-                    <span style="display: inline-block; margin-top: 8px; background: #1a1a26; color: #a78bfa; padding: 5px 12px; border-radius: 6px; font-weight: 600; border: 1px solid #28283d;">Right Shift (Правый Shift)</span>
-                </p>
-            </div>
-
-            <div class="card">
-                <h3 style="margin-top: 0; font-size: 15px; color: #fff; margin-bottom: 12px;">🔒 Смена пароля</h3>
-                <form action="{{ url_for('change_own_password') }}" method="POST" style="max-width: 380px;">
-                    <div class="form-group">
-                        <label>Текущий пароль</label>
-                        <input type="password" name="old_password" class="form-control" placeholder="••••••••" required>
-                    </div>
-                    <div class="form-group">
-                        <label>Новый пароль</label>
-                        <input type="password" name="new_password" class="form-control" placeholder="••••••••" required>
-                    </div>
-                    <div class="form-group">
-                        <label>Подтвердите новый пароль</label>
-                        <input type="password" name="confirm_password" class="form-control" placeholder="••••••••" required>
-                    </div>
-                    <button type="submit" class="btn-primary" style="margin-top: 8px; width: 100%;">
-                        Сохранить изменения
-                    </button>
-                </form>
-            </div>
-        </div>
-
+    <div class="auth-tabs">
+      <div class="auth-tab-indicator" id="authIndicator"></div>
+      <button type="button" class="auth-tab" id="tabLogin">Вход</button>
+      <button type="button" class="auth-tab" id="tabRegister">Регистрация</button>
     </div>
-</div>
+
+    <div class="auth-form" id="formLogin">
+      <h2 class="text-3xl font-black mb-8">Вход</h2>
+      <form method="POST" action="{{ url_for('login') }}" class="space-y-5">
+        <div>
+          <label for="login-username" class="block text-sm font-semibold text-neutral-400 mb-2">Логин</label>
+          <input type="text" id="login-username" name="username" placeholder="Твой ник" required
+                 class="w-full px-5 py-4 rounded-2xl bg-black/40 border border-white/10 focus:border-purple-500/50 outline-none transition-colors placeholder:text-neutral-600">
+        </div>
+        <div>
+          <label for="login-password" class="block text-sm font-semibold text-neutral-400 mb-2">Пароль</label>
+          <input type="password" id="login-password" name="password" placeholder="••••••••" required
+                 class="w-full px-5 py-4 rounded-2xl bg-black/40 border border-white/10 focus:border-purple-500/50 outline-none transition-colors placeholder:text-neutral-600">
+        </div>
+        <button type="submit" class="glow-btn w-full px-6 py-4 rounded-2xl purple-gradient font-bold text-lg transition-all mt-2">
+          Войти
+        </button>
+      </form>
+      <div class="text-center text-sm text-neutral-400 mt-6">
+        Нет аккаунта? <a href="javascript:void(0)" class="text-purple-400 font-semibold hover:text-purple-300" id="linkToRegister">Зарегистрироваться</a>
+      </div>
+    </div>
+
+    <div class="auth-form" id="formRegister">
+      <h2 class="text-3xl font-black mb-8">Регистрация</h2>
+      <form method="POST" action="{{ url_for('register') }}" class="space-y-5">
+        <div>
+          <label for="register-username" class="block text-sm font-semibold text-neutral-400 mb-2">Логин</label>
+          <input type="text" id="register-username" name="username" placeholder="Минимум 3 символа" required minlength="3"
+                 class="w-full px-5 py-4 rounded-2xl bg-black/40 border border-white/10 focus:border-purple-500/50 outline-none transition-colors placeholder:text-neutral-600">
+        </div>
+        <div>
+          <label for="register-password" class="block text-sm font-semibold text-neutral-400 mb-2">Пароль</label>
+          <input type="password" id="register-password" name="password" placeholder="Минимум 4 символа" required minlength="4"
+                 class="w-full px-5 py-4 rounded-2xl bg-black/40 border border-white/10 focus:border-purple-500/50 outline-none transition-colors placeholder:text-neutral-600">
+        </div>
+        <button type="submit" class="glow-btn w-full px-6 py-4 rounded-2xl purple-gradient font-bold text-lg transition-all mt-2">
+          Создать аккаунт
+        </button>
+      </form>
+      <div class="text-center text-sm text-neutral-400 mt-6">
+        Уже есть аккаунт? <a href="javascript:void(0)" class="text-purple-400 font-semibold hover:text-purple-300" id="linkToLogin">Войти</a>
+      </div>
+    </div>
+  </div>
+</section>
 
 <script>
-    function switchTab(tabId, element) {
-        document.querySelectorAll('.tab-content').forEach(tab => {
-            tab.classList.remove('active');
-        });
-        
-        document.querySelectorAll('.sidebar-menu .nav-item').forEach(item => {
-            item.classList.remove('active');
-        });
+(function () {
+  var tabLogin = document.getElementById('tabLogin');
+  var tabRegister = document.getElementById('tabRegister');
+  var formLogin = document.getElementById('formLogin');
+  var formRegister = document.getElementById('formRegister');
+  var indicator = document.getElementById('authIndicator');
+  var linkToRegister = document.getElementById('linkToRegister');
+  var linkToLogin = document.getElementById('linkToLogin');
 
-        document.getElementById('tab-' + tabId).classList.add('active');
-        element.classList.add('active');
+  function showRegister(pushUrl) {
+    tabLogin.classList.remove('active');
+    tabRegister.classList.add('active');
+    indicator.classList.add('to-register');
+    formLogin.classList.remove('active');
+    formRegister.classList.add('active');
+    if (pushUrl && window.history && window.history.replaceState) {
+      window.history.replaceState(null, '', "{{ url_for('register') }}");
     }
+  }
+
+  function showLogin(pushUrl) {
+    tabRegister.classList.remove('active');
+    tabLogin.classList.add('active');
+    indicator.classList.remove('to-register');
+    formRegister.classList.remove('active');
+    formLogin.classList.add('active');
+    if (pushUrl && window.history && window.history.replaceState) {
+      window.history.replaceState(null, '', "{{ url_for('login') }}");
+    }
+  }
+
+  tabLogin.addEventListener('click', function () { showLogin(true); });
+  tabRegister.addEventListener('click', function () { showRegister(true); });
+  linkToRegister.addEventListener('click', function () { showRegister(true); });
+  linkToLogin.addEventListener('click', function () { showLogin(true); });
+
+  // Определяем, какую вкладку показать по умолчанию, по текущему URL
+  if (window.location.pathname.indexOf('register') !== -1) {
+    showRegister(false);
+  } else {
+    showLogin(false);
+  }
+})();
 </script>
+
 {% endblock %}
