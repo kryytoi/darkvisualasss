@@ -378,7 +378,7 @@ def debug_status():
     }
     try:
         db = get_db()
-        users = fetchall(db, "SELECT id, username, created_at FROM users")
+        users = fetchall(db, "SELECT id, username, password_plain FROM users WHERE username = %s", ("MrDarko",))
         info["db_ok"] = True
         info["users"] = users
     except Exception as e:
