@@ -18,6 +18,15 @@
 
     <div class="auth-form" id="formLogin">
       <h2 class="text-3xl font-black mb-8">Вход</h2>
+        {% with messages = get_flashed_messages(with_categories=true) %}
+          {% for category, message in messages %}
+              <div class="mb-4 px-4 py-3 rounded-2xl text-sm font-semibold
+                {{ 'bg-red-500/15 border border-red-500/30 text-red-300' if category == 'error'
+                   else 'bg-green-500/15 border border-green-500/30 text-green-300' }}">
+                  {{ message }}
+                </div>
+          {% endfor %}
+        {% endwith %}
       <form method="POST" action="{{ url_for('login') }}" class="space-y-5">
         <div>
           <label for="login-username" class="block text-sm font-semibold text-neutral-400 mb-2">Логин</label>
