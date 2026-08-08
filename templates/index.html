@@ -109,12 +109,11 @@
       <div class="plan-card tilt-3d reveal {% if key == '120' %}highlight{% endif %}">
         {% if key == '120' %}<span class="badge">Популярно</span>{% endif %}
         <h3>{{ plan.name }}</h3>
-        <div class="price">{{ plan.price }} <span>₽</span></div>
+        <div class="price">{{ plan.price }}</div>
         <ul class="plan-perks">
-          <li>Все визуальные модули</li>
-          <li>Меню на Right Shift</li>
-          <li>Обновления мода</li>
-          {% if key == 'forever' %}<li>Без продлений — навсегда</li>{% endif %}
+          {% for feature in plan.features %}
+          <li>{{ feature }}</li>
+          {% endfor %}
         </ul>
         {% if user %}
           <a href="{{ url_for('buy', plan_key=key) }}" class="btn {% if key == '120' %}btn-glow{% else %}btn-outline{% endif %} full">Купить</a>
