@@ -100,10 +100,17 @@ def get_db():
         if db_url.startswith("postgres://"):
             db_url = db_url.replace("postgres://", "postgresql://", 1)
         return psycopg2.connect(db_url, cursor_factory=RealDictCursor)
-    else:
-        conn = sqlite3.connect("database.sqlite3")
-        conn.row_factory = sqlite3.Row
-        return conn
+
+    # На Vercel SQLite не работает (read-only, эфемерная ФС) — сразу говорим об этом
+    if os.environ.get("VERCEL") == "1":
+        raise RuntimeError(
+            "DATABASE_URL не задан! На Vercel нужен Postgres (Neon/Supabase). "
+            "Добавь переменную окружения DATABASE_URL в настройках проекта."
+        )
+
+    conn = sqlite3.connect("database.sqlite3")
+    conn.row_factory = sqlite3.Row
+    return conn
 
 
 def execute(db, query, params=()):
@@ -321,42 +328,27 @@ def validate_user_access(user, hwid_from_req):
     return True, None
 
 
-@app.route("/api/login", methods=["POST"])
-@app.route("/api/launcher/login", methods=["POST"])
-def launcher_login():
-    data = request.get_json(force=True, silent=True) or {}
-    username = data.get("username", "").strip()
-    password = data.get("password", "")
-    hwid = data.get("hwid", "unknown")
+@app.route("/login", methods=["GET", "POST"])
+def login():
+    if request.method == "POST":
+        username = request.form.get("username", "").strip()
+        password = request.form.get("password", "")
 
-    if not username or not password:
-        return jsonify({"success": False, "message": "Заполните логин и пароль!"}), 400
+        try:
+            db = get_db()
+            user = fetchone(db, "SELECT * FROM users WHERE username = %s", (username,))
+            db.close()
+        except Exception as e:
+            flash(f"Ошибка базы данных: {e}", "error")
+            return render_template("login.html")
 
-    db = get_db()
-    user = fetchone(db, "SELECT * FROM users WHERE username = %s", (username,))
+        if user and check_password_hash(user["password_hash"], password):
+            session.permanent = True
+            session["user_id"] = user["id"]
+            return redirect(url_for("profile"))
 
-    if not user or not check_password_hash(user["password_hash"], password):
-        db.close()
-        return jsonify({"success": False, "message": "Неверный логин или пароль!"}), 401
-
-    is_valid, err_msg = validate_user_access(user, hwid)
-    if not is_valid:
-        db.close()
-        return jsonify({"success": False, "message": err_msg}), 403
-
-    if not user.get("hwid") and hwid != "unknown":
-        execute(db, "UPDATE users SET hwid = %s WHERE id = %s", (hwid, user["id"]))
-
-    db.close()
-
-    session_token = session_serializer.dumps({"username": username, "hwid": hwid})
-
-    return jsonify({
-        "success": True,
-        "message": "Успешная авторизация!",
-        "role": user.get("role", "User"),
-        "sessionToken": session_token
-    }), 200
+        flash("Неверный логин или пароль", "error")
+    return render_template("login.html")
 
 
 @app.route("/api/mod-key", methods=["POST"])
