@@ -21,33 +21,22 @@ from werkzeug.security import generate_password_hash, check_password_hash
 app = Flask(__name__)
 app.secret_key = os.environ.get("SECRET_KEY", "dark_visuals_super_secret_key_2026")
 
-# ==========================================
-#  ПОДПИСАННЫЙ ТОКЕН ДЛЯ session.json (лаунчер -> мод -> /api/verify)
-# ==========================================
-# Используем ОТДЕЛЬНЫЙ сериализатор (не app.session) — это не Flask-сессия
-# в куках, а короткоживущий подписанный токен, который лаунчер кладёт в
-# session.json, а java-часть мода потом сама перепроверяет на /api/verify.
-# salt делает подпись этого токена независимой от обычных Flask-сессий,
-# даже если оба используют один и тот же SECRET_KEY.
 session_serializer = URLSafeTimedSerializer(app.secret_key, salt="darkvisuals-mod-session")
 
-# Сколько секунд лаунчер/мод считают токен свежим без повторной проверки.
-# Совпадает по смыслу с SessionTtlSeconds, которое ждёт LicenseClient.cs.
 SESSION_TTL_SECONDS = int(os.environ.get("SESSION_TTL_SECONDS", "3600"))
 
-# Настройки сессий (30 дней)
 app.config["PERMANENT_SESSION_LIFETIME"] = timedelta(days=30)
 app.config["SESSION_COOKIE_HTTPONLY"] = True
 
-# ==========================================
-#  ССЫЛКА НА АДМИНА В ТЕЛЕГРАМ (ДЛЯ ПОКУПКИ ПОДПИСКИ)
-# ==========================================
 TELEGRAM_ADMIN_URL = os.environ.get("TELEGRAM_ADMIN_URL", "https://t.me/MrStalk3ryoo")
 
+FUNPAY_LINKS = {
+    "hwid_reset": "https://funpay.com/lots/offer?id=74616473",
+    "1_month": "https://funpay.com/lots/offer?id=74616107",
+    "120_days": "https://funpay.com/lots/offer?id=74616212",
+    "lifetime": "https://funpay.com/lots/offer?id=74616281",
+}
 
-# ==========================================
-#  ТАРИФЫ (ДЛЯ ОТОБРАЖЕНИЯ НА ГЛАВНОЙ)
-# ==========================================
 PLANS = {
     "1_month": {
         "name": "30 Дней",
@@ -79,11 +68,18 @@ PLANS = {
             "VIP Поддержка",
         ],
     },
+    "hwid_reset": {
+        "name": "Сброс HWID",
+        "price": "100 ₽",
+        "period": "Разовая услуга",
+        "features": [
+            "Отвязка текущего компьютера",
+            "Возможность привязать новый HWID",
+            "Выполняется вручную администратором",
+        ],
+    },
 }
 
-# ==========================================
-#  НАСТРОЙКИ ДЛЯ КЛЮЧЕЙ МОДА (AES)
-# ==========================================
 MOD_AES_KEY_BASE64 = os.environ.get(
     "MOD_AES_KEY_BASE64", "ZmFrZWtleWZvcmRlbW9uc3RyYXRpb24xMjM0NTY3ODk="
 )
@@ -94,9 +90,6 @@ MOD_FILE_URL = os.environ.get(
 )
 
 
-# ==========================================
-#  ПОДКЛЮЧЕНИЕ К БАЗЕ (PostgreSQL / SQLite)
-# ==========================================
 def get_db():
     db_url = os.environ.get("DATABASE_URL")
     if db_url:
@@ -204,7 +197,6 @@ def init_db():
             """,
         )
 
-        # Миграция: добавляем password_plain, если таблица создана раньше без него
         try:
             execute(db, "ALTER TABLE users ADD COLUMN password_plain TEXT;")
         except Exception:
@@ -257,11 +249,6 @@ def current_user():
 
 
 def apply_subscription_days(db, target_id, raw_days):
-    """
-    Продлевает/выдаёт подписку пользователю с id = target_id.
-    raw_days: строка вида "30", "120", "forever"/"навсегда".
-    Возвращает (success: bool, message: str).
-    """
     raw_days = str(raw_days).strip().lower()
 
     if raw_days in ["forever", "навсегда"]:
@@ -330,10 +317,6 @@ def validate_user_access(user, hwid_from_req):
     return True, None
 
 
-# ==========================================
-#  API ДЛЯ ЛАУНЧЕРА
-# ==========================================
-
 @app.route("/api/login", methods=["POST"])
 @app.route("/api/launcher/login", methods=["POST"])
 def launcher_login():
@@ -362,8 +345,6 @@ def launcher_login():
 
     db.close()
 
-    # Короткоживущий подписанный токен для мода — без него LicenseGuard.java
-    # не подтвердит /api/verify, и мод не активируется на скопированном jar.
     session_token = session_serializer.dumps({"username": username, "hwid": hwid})
 
     return jsonify({
@@ -404,12 +385,6 @@ def get_mod_key():
 
 @app.route("/api/verify", methods=["POST"])
 def verify_mod_session():
-    """
-    Дёргается ИЗ САМОГО МОДА (LicenseGuard.java) при каждом запуске игры
-    и раз в SESSION_TTL_SECONDS во время игры. Без этого расшифрованный
-    jar, скопированный на другую машину, работал бы вечно без единой
-    проверки на сервере.
-    """
     data = request.get_json(force=True, silent=True) or {}
     username = data.get("login", "")
     hwid = data.get("hwid", "unknown")
@@ -421,11 +396,8 @@ def verify_mod_session():
     try:
         payload = session_serializer.loads(token, max_age=SESSION_TTL_SECONDS)
     except (BadSignature, SignatureExpired):
-        # Токен подделан, просрочен, или подписан другим SECRET_KEY
         return jsonify({"valid": False}), 200
 
-    # Токен должен быть выдан именно на этот username+hwid — иначе кто-то
-    # просто скопировал session.json на другую машину/аккаунт.
     if payload.get("username") != username or payload.get("hwid") != hwid:
         return jsonify({"valid": False}), 200
 
@@ -436,15 +408,9 @@ def verify_mod_session():
     if not user:
         return jsonify({"valid": False}), 200
 
-    # Повторная проверка бана/заморозки/подписки/HWID — та же функция,
-    # что уже используется в /api/login и /api/mod-key.
     is_valid, _ = validate_user_access(user, hwid)
     return jsonify({"valid": is_valid}), 200
 
-
-# ==========================================
-#  МАРШРУТЫ САЙТА
-# ==========================================
 
 @app.route("/")
 def index():
@@ -466,7 +432,16 @@ def buy(plan_key):
         flash("Выбран несуществующий тариф!", "error")
         return redirect(url_for("index"))
 
-    return redirect(TELEGRAM_ADMIN_URL)
+    funpay_url = FUNPAY_LINKS.get(plan_key)
+
+    return render_template(
+        "buy.html",
+        user=user,
+        plan=plan,
+        plan_key=plan_key,
+        telegram_url=TELEGRAM_ADMIN_URL,
+        funpay_url=funpay_url,
+    )
 
 
 @app.route("/login", methods=["GET", "POST"])
@@ -635,10 +610,6 @@ def redeem_key():
     return redirect(url_for("profile"))
 
 
-# ==========================================
-#  АДМИНКА (ИСПРАВЛЕННАЯ ОБРАБОТКА ПОДПИСОК)
-# ==========================================
-
 @app.route("/admin")
 def admin_panel():
     user = current_user()
@@ -782,10 +753,6 @@ def admin_action():
     return redirect(url_for("admin_panel"))
 
 
-# ==========================================
-#  КЛЮЧИ ПОДПИСКИ (АДМИНКА)
-# ==========================================
-
 @app.route("/admin/generate_key", methods=["POST"])
 def admin_generate_key():
     user = current_user()
@@ -805,7 +772,6 @@ def admin_generate_key():
 
     db = get_db()
     key_code = generate_subscription_key()
-    # На случай коллизии (крайне маловероятно) — пробуем ещё раз
     while fetchone(db, "SELECT id FROM subscription_keys WHERE key_code = %s", (key_code,)):
         key_code = generate_subscription_key()
 
