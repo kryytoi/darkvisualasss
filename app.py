@@ -30,6 +30,16 @@ app.config["SESSION_COOKIE_HTTPONLY"] = True
 app.config["SESSION_COOKIE_SAMESITE"] = "Lax"
 app.config["SESSION_COOKIE_SECURE"] = os.environ.get("VERCEL") == "1" or os.environ.get("FORCE_SECURE_COOKIES") == "1"
 
+@app.after_request
+def add_no_cache_headers(resp):
+    # Не кэшируем HTML-страницы (особенно приватные, вроде /profile)
+    ctype = resp.headers.get("Content-Type", "")
+    if "text/html" in ctype:
+        resp.headers["Cache-Control"] = "no-store, no-cache, must-revalidate, max-age=0"
+        resp.headers["Pragma"] = "no-cache"
+        resp.headers["Expires"] = "0"
+    return resp
+
 TELEGRAM_ADMIN_URL = os.environ.get("TELEGRAM_ADMIN_URL", "https://t.me/MrStalk3ryoo")
 
 FUNPAY_LINKS = {
