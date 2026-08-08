@@ -42,6 +42,7 @@ PLANS = {
         "name": "30 Дней",
         "price": "149 ₽",
         "period": "1 месяц",
+        "image": "img/plan_banner.png",
         "features": [
             "Полный доступ к Dark Visuals",
             "Автоматические обновления",
@@ -52,6 +53,7 @@ PLANS = {
         "name": "120 Дней",
         "price": "399 ₽",
         "period": "4 месяца",
+        "image": "img/plan_banner.png",
         "features": [
             "Полный доступ к Dark Visuals",
             "Приоритетные обновления",
@@ -62,6 +64,7 @@ PLANS = {
         "name": "Навсегда",
         "price": "799 ₽",
         "period": "Навсегда",
+        "image": "img/plan_banner.png",
         "features": [
             "Вечный доступ без ограничений",
             "Приоритетные обновления",
@@ -72,6 +75,7 @@ PLANS = {
         "name": "Сброс HWID",
         "price": "100 ₽",
         "period": "Разовая услуга",
+        "image": "img/plan_banner.png",
         "features": [
             "Сбрасывает ваш HWID",
         ],
