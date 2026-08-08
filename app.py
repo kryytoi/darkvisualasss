@@ -18,7 +18,14 @@ from flask import (
 )
 from werkzeug.security import generate_password_hash, check_password_hash
 
+from werkzeug.middleware.proxy_fix import ProxyFix  # добавь к остальным импортам вверху файла
+
 app = Flask(__name__)
+
+# Vercel/Render терминируют HTTPS на прокси — говорим Flask доверять заголовкам прокси,
+# иначе он считает соединение http и Secure-кука сессии не сохраняется.
+app.wsgi_app = ProxyFix(app.wsgi_app, x_proto=1, x_host=1)
+
 app.secret_key = os.environ.get("SECRET_KEY", "dark_visuals_super_secret_key_2026")
 
 session_serializer = URLSafeTimedSerializer(app.secret_key, salt="darkvisuals-mod-session")
@@ -28,7 +35,7 @@ SESSION_TTL_SECONDS = int(os.environ.get("SESSION_TTL_SECONDS", "3600"))
 app.config["PERMANENT_SESSION_LIFETIME"] = timedelta(days=30)
 app.config["SESSION_COOKIE_HTTPONLY"] = True
 app.config["SESSION_COOKIE_SAMESITE"] = "Lax"
-app.config["SESSION_COOKIE_SECURE"] = os.environ.get("VERCEL") == "1" or os.environ.get("FORCE_SECURE_COOKIES") == "1"
+app.config["SESSION_COOKIE_SECURE"] = True  # на Vercel всегда HTTPS
 
 @app.after_request
 def add_no_cache_headers(resp):
