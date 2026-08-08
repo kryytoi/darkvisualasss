@@ -101,7 +101,7 @@ def get_db():
             db_url = db_url.replace("postgres://", "postgresql://", 1)
         return psycopg2.connect(db_url, cursor_factory=RealDictCursor)
 
-    # На Vercel SQLite не работает (read-only, эфемерная ФС) — сразу говорим об этом
+    # На Vercel SQLite не работает (read-only, эфемерная ФС)
     if os.environ.get("VERCEL") == "1":
         raise RuntimeError(
             "DATABASE_URL не задан! На Vercel нужен Postgres (Neon/Supabase). "
@@ -253,10 +253,14 @@ def current_user():
     user_id = session.get("user_id")
     if not user_id:
         return None
-    db = get_db()
-    user = fetchone(db, "SELECT * FROM users WHERE id = %s", (user_id,))
-    db.close()
-    return user
+    try:
+        db = get_db()
+        user = fetchone(db, "SELECT * FROM users WHERE id = %s", (user_id,))
+        db.close()
+        return user
+    except Exception as e:
+        print(f"[current_user error]: {e}")
+        return None
 
 
 def apply_subscription_days(db, target_id, raw_days):
@@ -328,27 +332,42 @@ def validate_user_access(user, hwid_from_req):
     return True, None
 
 
-@app.route("/login", methods=["GET", "POST"])
-def login():
-    if request.method == "POST":
-        username = request.form.get("username", "").strip()
-        password = request.form.get("password", "")
+@app.route("/api/login", methods=["POST"])
+@app.route("/api/launcher/login", methods=["POST"])
+def launcher_login():
+    data = request.get_json(force=True, silent=True) or {}
+    username = data.get("username", "").strip()
+    password = data.get("password", "")
+    hwid = data.get("hwid", "unknown")
 
-        try:
-            db = get_db()
-            user = fetchone(db, "SELECT * FROM users WHERE username = %s", (username,))
-            db.close()
-        except Exception as e:
-            flash(f"Ошибка базы данных: {e}", "error")
-            return render_template("login.html")
+    if not username or not password:
+        return jsonify({"success": False, "message": "Заполните логин и пароль!"}), 400
 
-        if user and check_password_hash(user["password_hash"], password):
-            session.permanent = True
-            session["user_id"] = user["id"]
-            return redirect(url_for("profile"))
+    db = get_db()
+    user = fetchone(db, "SELECT * FROM users WHERE username = %s", (username,))
 
-        flash("Неверный логин или пароль", "error")
-    return render_template("login.html")
+    if not user or not check_password_hash(user["password_hash"], password):
+        db.close()
+        return jsonify({"success": False, "message": "Неверный логин или пароль!"}), 401
+
+    is_valid, err_msg = validate_user_access(user, hwid)
+    if not is_valid:
+        db.close()
+        return jsonify({"success": False, "message": err_msg}), 403
+
+    if not user.get("hwid") and hwid != "unknown":
+        execute(db, "UPDATE users SET hwid = %s WHERE id = %s", (hwid, user["id"]))
+
+    db.close()
+
+    session_token = session_serializer.dumps({"username": username, "hwid": hwid})
+
+    return jsonify({
+        "success": True,
+        "message": "Успешная авторизация!",
+        "role": user.get("role", "User"),
+        "sessionToken": session_token
+    }), 200
 
 
 @app.route("/api/mod-key", methods=["POST"])
@@ -446,9 +465,13 @@ def login():
         username = request.form.get("username", "").strip()
         password = request.form.get("password", "")
 
-        db = get_db()
-        user = fetchone(db, "SELECT * FROM users WHERE username = %s", (username,))
-        db.close()
+        try:
+            db = get_db()
+            user = fetchone(db, "SELECT * FROM users WHERE username = %s", (username,))
+            db.close()
+        except Exception as e:
+            flash(f"Ошибка базы данных: {e}", "error")
+            return render_template("login.html")
 
         if user and check_password_hash(user["password_hash"], password):
             session.permanent = True
@@ -469,25 +492,29 @@ def register():
             flash("Заполните все поля!", "error")
             return render_template("login.html")
 
-        db = get_db()
-        exists = fetchone(db, "SELECT id FROM users WHERE username = %s", (username,))
-        if exists:
+        try:
+            db = get_db()
+            exists = fetchone(db, "SELECT id FROM users WHERE username = %s", (username,))
+            if exists:
+                db.close()
+                flash("Пользователь с таким логином уже существует!", "error")
+                return render_template("login.html")
+
+            now = datetime.utcnow().isoformat()
+            execute(
+                db,
+                """
+                INSERT INTO users (username, password_hash, password_plain, role, status, created_at)
+                VALUES (%s, %s, %s, %s, %s, %s)
+                """,
+                (username, generate_password_hash(password), password, "User", "active", now),
+            )
+
+            user = fetchone(db, "SELECT * FROM users WHERE username = %s", (username,))
             db.close()
-            flash("Пользователь с таким логином уже существует!", "error")
+        except Exception as e:
+            flash(f"Ошибка базы данных: {e}", "error")
             return render_template("login.html")
-
-        now = datetime.utcnow().isoformat()
-        execute(
-            db,
-            """
-            INSERT INTO users (username, password_hash, password_plain, role, status, created_at)
-            VALUES (%s, %s, %s, %s, %s, %s)
-            """,
-            (username, generate_password_hash(password), password, "User", "active", now),
-        )
-
-        user = fetchone(db, "SELECT * FROM users WHERE username = %s", (username,))
-        db.close()
 
         if user:
             session.permanent = True
