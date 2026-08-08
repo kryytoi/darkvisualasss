@@ -1,9 +1,6 @@
-// Dark Visuals — mobile menu, reveal on scroll, hero entrance
-
 document.addEventListener('DOMContentLoaded', function () {
   if (window.lucide) lucide.createIcons();
 
-  // ---- mobile menu ----
   var menuBtn = document.getElementById('menuBtn');
   var mobileMenu = document.getElementById('mobileMenu');
   var iconOpen = document.getElementById('menuIconOpen');
@@ -35,7 +32,6 @@ document.addEventListener('DOMContentLoaded', function () {
     });
   }
 
-  // ---- reveal on scroll ----
   var reduceMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
   var revealEls = document.querySelectorAll('.reveal, .reveal-scale');
 
@@ -53,7 +49,6 @@ document.addEventListener('DOMContentLoaded', function () {
     revealEls.forEach(function (el) { el.classList.add('in'); });
   }
 
-  // ---- hero entrance ----
   var heroLeft = document.querySelector('.hero-fade-left');
   var heroScale = document.querySelector('.hero-fade-scale');
   requestAnimationFrame(function () {
@@ -61,7 +56,6 @@ document.addEventListener('DOMContentLoaded', function () {
     if (heroScale) heroScale.classList.add('in');
   });
 
-  // ---- auto-hide flash messages ----
   document.querySelectorAll('.flash').forEach(function (el, i) {
     setTimeout(function () {
       el.style.opacity = '0';
@@ -72,7 +66,6 @@ document.addEventListener('DOMContentLoaded', function () {
 
   if (reduceMotion) return;
 
-  // ---- subtle 3D tilt on cards ----
   var maxTilt = 6;
   document.querySelectorAll('.tilt-card').forEach(function (card) {
     card.addEventListener('mousemove', function (e) {
