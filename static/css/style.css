@@ -1,16 +1,13 @@
 :root {
   color-scheme: dark;
-  /* Глубокие цвета для фона и карточек */
   --bg-color: #05020a; 
   --card-bg: rgba(18, 11, 31, 0.65);
   --card-border: rgba(168, 85, 247, 0.15);
   
-  /* Фиолетовые акценты */
   --purple: #7c3aed;
   --purple-light: #a855f7;
   --purple-glow: rgba(124, 58, 237, 0.35);
   
-  /* Текст */
   --text: #f8fafc;
   --text-dim: #94a3b8;
 }
@@ -36,7 +33,6 @@ body {
   position: relative;
 }
 
-/* Глобальное фоновое свечение */
 .global-purple-glow {
   position: fixed;
   top: -20%;
@@ -52,7 +48,6 @@ body {
 ::selection { background: rgba(168, 85, 247, 0.4); color: #fff; }
 .text-glow { text-shadow: 0 0 20px rgba(168, 85, 247, 0.6); }
 
-/* --- Анимации --- */
 .reveal {
   opacity: 0;
   transform: translateY(30px);
@@ -61,13 +56,10 @@ body {
 .reveal.in { opacity: 1; transform: translateY(0); }
 body:not(:has(.reveal.in)) .reveal { opacity: 1; transform: none; }
 
-/* --- 3D ЭФФЕКТЫ (МАГИЯ ЗДЕСЬ) --- */
-/* Контейнер для перспективы */
 .features, .pricing, .trusted-grid, .hero {
   perspective: 1200px; 
 }
 
-/* Сама карточка, которая будет "оживать" */
 .tilt-3d {
   transform-style: preserve-3d;
   transition: transform 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.275), 
@@ -81,7 +73,6 @@ body:not(:has(.reveal.in)) .reveal { opacity: 1; transform: none; }
   background: rgba(25, 15, 45, 0.85);
 }
 
-/* --- СЕКЦИИ И СЕТКА --- */
 .section {
   max-width: 1150px;
   margin: 0 auto;
@@ -103,7 +94,6 @@ body:not(:has(.reveal.in)) .reveal { opacity: 1; transform: none; }
 .section-head h2 { font-size: 38px; font-weight: 900; margin: 10px 0; letter-spacing: -1px; }
 .section-sub { color: var(--text-dim); font-size: 16px; max-width: 600px; margin: 0 auto; line-height: 1.6; }
 
-/* --- HERO СЕКЦИЯ --- */
 .hero { text-align: center; padding-top: 60px; }
 .hero-badge {
   display: inline-block; padding: 6px 18px;
@@ -126,7 +116,6 @@ kbd {
 
 .hero-actions { display: flex; justify-content: center; gap: 15px; margin-bottom: 60px; }
 
-/* Кнопки */
 .btn {
   display: inline-flex; align-items: center; justify-content: center;
   padding: 16px 32px; border-radius: 12px; font-weight: 800; font-size: 15px;
@@ -144,7 +133,6 @@ kbd {
 .btn-outline:hover { background: rgba(255, 255, 255, 0.08); border-color: var(--purple-light); transform: translateY(-3px); }
 .btn.full { width: 100%; }
 
-/* Скриншоты */
 .hero-shot, .showcase-shot {
   position: relative; border-radius: 20px; overflow: hidden;
   border: 1px solid var(--card-border); background: var(--bg-color);
@@ -158,7 +146,6 @@ kbd {
   font-size: 14px; border-top: 1px solid var(--card-border); text-align: center;
 }
 
-/* --- ФИЧИ (КАРТОЧКИ) --- */
 .features {
   display: grid; grid-template-columns: repeat(auto-fit, minmax(250px, 1fr)); gap: 24px;
 }
@@ -177,7 +164,6 @@ kbd {
 .feature-card h3 { font-size: 20px; margin: 0 0 10px 0; font-weight: 800; }
 .feature-card p { font-size: 15px; line-height: 1.6; margin: 0; color: var(--text-dim); }
 
-/* --- ЧИПСЫ --- */
 .module-chips { display: flex; flex-wrap: wrap; gap: 12px; justify-content: center; margin-top: 35px; }
 .module-chips span {
   background: var(--card-bg); border: 1px solid var(--card-border);
@@ -187,7 +173,6 @@ kbd {
 }
 .module-chips span:hover { border-color: var(--purple-light); transform: translateY(-3px); background: rgba(124, 58, 237, 0.2); }
 
-/* --- ПРАЙС-ЛИСТ --- */
 .pricing { display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 30px; }
 .plan-card {
   background: var(--card-bg); backdrop-filter: blur(12px); -webkit-backdrop-filter: blur(12px);
@@ -209,7 +194,6 @@ kbd {
 .plan-perks { list-style: none; padding: 0; margin: 0 0 35px 0; color: var(--text-dim); font-size: 15px; line-height: 2.2; }
 .plan-perks li::before { content: "✦ "; color: var(--purple-light); font-weight: bold; font-size: 18px; }
 
-/* --- ПРОЕКТУ ДОВЕРЯЮТ (КОМАНДА) --- */
 .trusted-grid { display: flex; justify-content: center; align-items: stretch; gap: 30px; flex-wrap: wrap; }
 .trusted-card {
   background: var(--card-bg); backdrop-filter: blur(16px); -webkit-backdrop-filter: blur(16px);
@@ -232,7 +216,6 @@ kbd {
 .role-tester { color: #38bdf8; border: 1px solid rgba(56, 189, 248, 0.3); }
 .role-tortik { color: #f472b6; border: 1px solid rgba(244, 114, 182, 0.3); }
 
-/* --- ВОЛНОВАЯ ФИОЛЕТОВАЯ ОБВОДКА ДЛЯ ТАРИФА 120 ДНЕЙ --- */
 .plan-card.highlight { position: relative; overflow: visible; }
 .plan-card.highlight::before {
   content: "";
@@ -262,7 +245,6 @@ kbd {
   50% { opacity: 1; }
 }
 
-/* --- УВЕДОМЛЕНИЯ (FLASH) --- */
 .flash-stack {
   position: fixed;
   top: 110px;
@@ -351,7 +333,6 @@ kbd {
   .flash-stack { right: 12px; left: 12px; width: auto; max-width: none; top: 100px; }
 }
 
-/* --- ВКЛАДКИ ВХОД / РЕГИСТРАЦИЯ --- */
 .auth-tabs {
   display: flex;
   background: rgba(255, 255, 255, 0.04);
@@ -399,7 +380,6 @@ kbd {
   to { opacity: 1; transform: translateY(0); }
 }
 
-/* --- УВЕДОМЛЕНИЯ (FLASH-СООБЩЕНИЯ) --- */
 .flash-stack {
   position: fixed; top: 110px; right: 24px; z-index: 999;
   display: flex; flex-direction: column; gap: 12px;
