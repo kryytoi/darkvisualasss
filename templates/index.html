@@ -36,7 +36,75 @@
          alt="Интерфейс Dark Visuals" loading="eager">
     <div class="shot-caption"><kbd>Right Shift</kbd> — открыть меню визуалов</div>
   </div>
+
+  <div class="release-counter reveal" id="releaseCounter">
+    <span class="release-counter-label" id="releaseLabel">До релиза</span>
+    <span class="release-counter-value" id="releaseValue">—</span>
+  </div>
 </section>
+
+<style>
+.release-counter {
+  display: inline-flex;
+  align-items: center;
+  gap: 14px;
+  margin: 30px auto 0;
+  padding: 14px 28px;
+  border-radius: 20px;
+  background: rgba(255, 255, 255, 0.04);
+  border: 1px solid rgba(168, 85, 247, 0.25);
+  box-shadow: 0 0 25px rgba(124, 58, 237, 0.15);
+}
+.release-counter-label {
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 13px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 1.5px;
+  color: var(--text-dim);
+}
+.release-counter-value {
+  font-size: 26px;
+  font-weight: 900;
+  background: linear-gradient(135deg, #e9d5ff, var(--purple-light), var(--purple));
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+}
+</style>
+
+<script>
+(function () {
+  var releaseDate = new Date(Date.UTC(2026, 7, 12, 0, 0, 0)); // 12 августа 2026
+  var labelEl = document.getElementById('releaseLabel');
+  var valueEl = document.getElementById('releaseValue');
+  if (!labelEl || !valueEl) return;
+
+  function pluralDays(n) {
+    var mod10 = n % 10, mod100 = n % 100;
+    if (mod10 === 1 && mod100 !== 11) return 'день';
+    if ([2, 3, 4].indexOf(mod10) !== -1 && [12, 13, 14].indexOf(mod100) === -1) return 'дня';
+    return 'дней';
+  }
+
+  function update() {
+    var now = new Date();
+    var diffMs = releaseDate.getTime() - now.getTime();
+    var diffDays = Math.ceil(diffMs / (1000 * 60 * 60 * 24));
+
+    if (diffMs > 0) {
+      labelEl.textContent = 'До релиза';
+      valueEl.textContent = diffDays + ' ' + pluralDays(diffDays);
+    } else {
+      var sinceDays = Math.floor(Math.abs(diffMs) / (1000 * 60 * 60 * 24));
+      labelEl.textContent = 'Дней с релиза';
+      valueEl.textContent = sinceDays + ' ' + pluralDays(sinceDays);
+    }
+  }
+
+  update();
+  setInterval(update, 60 * 1000);
+})();
+</script>
 
 <section id="features" class="section">
   <div class="section-head reveal">
