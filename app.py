@@ -32,12 +32,11 @@ session_serializer = URLSafeTimedSerializer(app.secret_key, salt="darkvisuals-mo
 
 SESSION_TTL_SECONDS = int(os.environ.get("SESSION_TTL_SECONDS", "3600"))
 
-IS_PRODUCTION = bool(os.environ.get("VERCEL")) or bool(os.environ.get("DATABASE_URL"))
-
 app.config["PERMANENT_SESSION_LIFETIME"] = timedelta(days=30)
 app.config["SESSION_COOKIE_HTTPONLY"] = True
 app.config["SESSION_COOKIE_SAMESITE"] = "Lax"
-app.config["SESSION_COOKIE_SECURE"] = IS_PRODUCTION
+app.config["SESSION_COOKIE_SECURE"] = True  # на Vercel всегда HTTPS
+
 @app.after_request
 def add_no_cache_headers(resp):
     # Не кэшируем HTML-страницы (особенно приватные, вроде /profile)
@@ -49,6 +48,11 @@ def add_no_cache_headers(resp):
     return resp
 
 TELEGRAM_ADMIN_URL = os.environ.get("TELEGRAM_ADMIN_URL", "https://t.me/MrStalk3ryoo")
+
+LAUNCHER_URL = os.environ.get(
+    "LAUNCHER_URL",
+    "https://www.dropbox.com/scl/fi/spf52kd44fobbs983dvwf/DarkVisualsLoader.exe?rlkey=50ty74749w9g94gmku9y478iu&st=32q3kd1c&dl=1",
+)
 
 FUNPAY_LINKS = {
     "hwid_reset": "https://funpay.com/lots/offer?id=74616473",
@@ -467,7 +471,7 @@ def index():
     user = current_user()
     index_path = os.path.join(app.template_folder, "index.html")
     if os.path.exists(index_path):
-        return render_template("index.html", user=user, plans=PLANS)
+        return render_template("index.html", user=user, plans=PLANS, launcher_url=LAUNCHER_URL)
     return render_template("login.html", user=user)
 
 
@@ -596,7 +600,7 @@ def profile():
         except ValueError:
             sub_info = {"active": False, "text": "Ошибка даты", "days_left": 0}
 
-    return render_template("profile.html", user=user, sub=sub_info)
+    return render_template("profile.html", user=user, sub=sub_info, launcher_url=LAUNCHER_URL)
 
 
 @app.route("/profile/change_password", methods=["POST"])
