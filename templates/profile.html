@@ -16,13 +16,13 @@
         <div class="flex items-center gap-3">
           {% if user.is_admin %}
             <a href="{{ url_for('admin_panel') }}"
-               class="px-4 py-2 rounded-xl bg-white/5 border border-white/10 text-sm font-semibold hover:bg-white/10 transition-colors">
-              ⚙️ Админ-панель
+               class="inline-flex items-center gap-2 px-4 py-2 rounded-xl bg-white/5 border border-white/10 text-sm font-semibold hover:bg-white/10 transition-colors">
+              <i data-lucide="settings" class="w-4 h-4"></i> Админ-панель
             </a>
           {% endif %}
           <a href="{{ url_for('logout') }}"
-             class="px-4 py-2 rounded-xl bg-red-500/10 border border-red-500/20 text-red-300 text-sm font-semibold hover:bg-red-500/20 transition-colors">
-            Выйти
+             class="inline-flex items-center gap-2 px-4 py-2 rounded-xl bg-red-500/10 border border-red-500/20 text-red-300 text-sm font-semibold hover:bg-red-500/20 transition-colors">
+            <i data-lucide="log-out" class="w-4 h-4"></i> Выйти
           </a>
         </div>
       </div>
@@ -30,23 +30,35 @@
       <div class="flex flex-wrap items-center justify-between gap-4">
         <h2 class="text-3xl font-black mb-1">{{ user.username }}</h2>
         <a href="{{ launcher_url }}" target="_blank" rel="noopener"
-           class="glow-btn inline-flex items-center gap-2 px-6 py-3 rounded-2xl purple-gradient font-bold text-sm transition-all">
-          ⬇ Скачать лаунчер
+           class="glow-btn inline-flex items-center gap-2 px-6 py-3 rounded-2xl purple-gradient font-bold text-sm border-2 border-purple-400/60 shadow-[0_0_20px_rgba(168,85,247,0.35)] transition-all">
+          <i data-lucide="download" class="w-4 h-4"></i> Скачать лаунчер
         </a>
       </div>
       <div class="flex flex-wrap items-center gap-2 text-sm text-neutral-400">
-        <span class="px-3 py-1 rounded-full bg-white/5 border border-white/10">{{ user.role or 'User' }}</span>
+        <span class="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-white/5 border border-white/10">
+          <i data-lucide="user" class="w-3.5 h-3.5"></i> {{ user.role or 'User' }}
+        </span>
         {% if user.status == 'banned' %}
-          <span class="px-3 py-1 rounded-full bg-red-500/15 border border-red-500/30 text-red-300 font-semibold">Заблокирован</span>
+          <span class="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-red-500/15 border border-red-500/30 text-red-300 font-semibold">
+            <i data-lucide="ban" class="w-3.5 h-3.5"></i> Заблокирован
+          </span>
         {% elif user.status == 'frozen' %}
-          <span class="px-3 py-1 rounded-full bg-yellow-500/15 border border-yellow-500/30 text-yellow-300 font-semibold">Заморожен</span>
+          <span class="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-yellow-500/15 border border-yellow-500/30 text-yellow-300 font-semibold">
+            <i data-lucide="snowflake" class="w-3.5 h-3.5"></i> Заморожен
+          </span>
         {% else %}
-          <span class="px-3 py-1 rounded-full bg-green-500/15 border border-green-500/30 text-green-300 font-semibold">Активен</span>
+          <span class="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-green-500/15 border border-green-500/30 text-green-300 font-semibold">
+            <i data-lucide="check-circle" class="w-3.5 h-3.5"></i> Активен
+          </span>
         {% endif %}
         {% if user.hwid %}
-          <span class="px-3 py-1 rounded-full bg-white/5 border border-white/10 font-mono text-xs">HWID: {{ user.hwid[:16] }}…</span>
+          <span class="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-white/5 border border-white/10 font-mono text-xs">
+            <i data-lucide="cpu" class="w-3.5 h-3.5"></i> HWID: {{ user.hwid[:16] }}…
+          </span>
         {% else %}
-          <span class="px-3 py-1 rounded-full bg-white/5 border border-white/10 text-xs">HWID не привязан</span>
+          <span class="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-white/5 border border-white/10 text-xs">
+            <i data-lucide="cpu" class="w-3.5 h-3.5"></i> HWID не привязан
+          </span>
         {% endif %}
       </div>
     </div>
@@ -71,15 +83,17 @@
 
       {# ==== Подписка ==== #}
       <div class="bg-neutral-900/40 backdrop-blur-xl border border-white/10 rounded-[2.5rem] p-8">
-        <h3 class="text-xl font-black mb-5">Подписка</h3>
+        <h3 class="text-xl font-black mb-5 flex items-center gap-2">
+          <i data-lucide="crown" class="w-5 h-5 text-purple-400"></i> Подписка
+        </h3>
 
         <div class="space-y-3 mb-6">
           <div class="flex items-center justify-between text-sm">
-            <span class="text-neutral-400">Тариф</span>
+            <span class="text-neutral-400 flex items-center gap-2"><i data-lucide="tag" class="w-4 h-4"></i> Тариф</span>
             <span class="font-semibold">{{ user.plan or '—' }}</span>
           </div>
           <div class="flex items-center justify-between text-sm">
-            <span class="text-neutral-400">Статус</span>
+            <span class="text-neutral-400 flex items-center gap-2"><i data-lucide="activity" class="w-4 h-4"></i> Статус</span>
             {% if sub.active %}
               <span class="font-semibold text-green-400">Активна</span>
             {% else %}
@@ -87,12 +101,12 @@
             {% endif %}
           </div>
           <div class="flex items-center justify-between text-sm">
-            <span class="text-neutral-400">{{ 'Действует до' if sub.text != 'Навсегда (Forever)' else 'Срок' }}</span>
+            <span class="text-neutral-400 flex items-center gap-2"><i data-lucide="calendar" class="w-4 h-4"></i> {{ 'Действует до' if sub.text != 'Навсегда (Forever)' else 'Срок' }}</span>
             <span class="font-semibold">{{ sub.text }}</span>
           </div>
           {% if sub.active and sub.days_left != '∞' %}
           <div class="flex items-center justify-between text-sm">
-            <span class="text-neutral-400">Осталось дней</span>
+            <span class="text-neutral-400 flex items-center gap-2"><i data-lucide="hourglass" class="w-4 h-4"></i> Осталось дней</span>
             <span class="font-semibold text-purple-300">{{ sub.days_left }}</span>
           </div>
           {% endif %}
@@ -100,19 +114,21 @@
 
         {% if not sub.active %}
         <a href="{{ url_for('index') }}#pricing"
-           class="glow-btn block text-center w-full px-6 py-3 rounded-2xl purple-gradient font-bold transition-all">
-          Купить подписку
+           class="glow-btn flex items-center justify-center gap-2 w-full px-6 py-3 rounded-2xl purple-gradient font-bold transition-all">
+          <i data-lucide="shopping-cart" class="w-4 h-4"></i> Купить подписку
         </a>
         {% endif %}
 
         <form method="POST" action="{{ url_for('redeem_key') }}" class="mt-5 space-y-3">
-          <label class="block text-sm font-semibold text-neutral-400">Активировать ключ</label>
-          <div class="flex gap-2">
+          <label class="block text-sm font-semibold text-neutral-400 flex items-center gap-2">
+            <i data-lucide="key" class="w-4 h-4"></i> Активировать ключ
+          </label>
+          <div class="flex flex-col sm:flex-row gap-2">
             <input type="text" name="key_code" placeholder="XXXX-XXXX-XXXX" required
-                   class="flex-1 px-4 py-3 rounded-2xl bg-black/40 border border-white/10 focus:border-purple-500/50 outline-none transition-colors placeholder:text-neutral-600 font-mono text-sm">
+                   class="min-w-0 flex-1 px-4 py-3 rounded-2xl bg-black/40 border border-white/10 focus:border-purple-500/50 outline-none transition-colors placeholder:text-neutral-600 font-mono text-sm">
             <button type="submit"
-                    class="px-5 py-3 rounded-2xl bg-white/5 border border-white/10 font-bold text-sm hover:bg-white/10 transition-colors">
-              Активировать
+                    class="shrink-0 inline-flex items-center justify-center gap-2 px-5 py-3 rounded-2xl bg-white/5 border border-white/10 font-bold text-sm hover:bg-white/10 transition-colors whitespace-nowrap">
+              <i data-lucide="check" class="w-4 h-4"></i> Активировать
             </button>
           </div>
         </form>
@@ -120,7 +136,9 @@
 
       {# ==== Смена пароля ==== #}
       <div class="bg-neutral-900/40 backdrop-blur-xl border border-white/10 rounded-[2.5rem] p-8">
-        <h3 class="text-xl font-black mb-5">Смена пароля</h3>
+        <h3 class="text-xl font-black mb-5 flex items-center gap-2">
+          <i data-lucide="lock" class="w-5 h-5 text-purple-400"></i> Смена пароля
+        </h3>
 
         <form method="POST" action="{{ url_for('change_own_password') }}" class="space-y-4">
           <div>
@@ -139,8 +157,8 @@
                    class="w-full px-5 py-3 rounded-2xl bg-black/40 border border-white/10 focus:border-purple-500/50 outline-none transition-colors placeholder:text-neutral-600">
           </div>
           <button type="submit"
-                  class="glow-btn w-full px-6 py-3 rounded-2xl purple-gradient font-bold transition-all">
-            Сохранить новый пароль
+                  class="glow-btn flex items-center justify-center gap-2 w-full px-6 py-3 rounded-2xl purple-gradient font-bold transition-all">
+            <i data-lucide="save" class="w-4 h-4"></i> Сохранить новый пароль
           </button>
         </form>
       </div>
@@ -149,7 +167,9 @@
 
     {# ==== Библиотека: Косметика / Ресурс-паки / Конфиги ==== #}
     <div class="bg-neutral-900/40 backdrop-blur-xl border border-white/10 rounded-[2.5rem] p-8">
-      <h3 class="text-xl font-black mb-5">Библиотека</h3>
+      <h3 class="text-xl font-black mb-5 flex items-center gap-2">
+        <i data-lucide="layout-grid" class="w-5 h-5 text-purple-400"></i> Библиотека
+      </h3>
 
       <div class="lib-tabs mb-6">
         <div class="lib-tab-indicator" id="libIndicator"></div>
