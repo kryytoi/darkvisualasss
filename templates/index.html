@@ -21,10 +21,11 @@
     не ломая производительность сервера. Нажми <kbd>Right Shift</kbd> — и всё меню перед тобой.
   </p>
   <div class="hero-actions reveal">
+    <a href="{{ launcher_url }}" class="btn btn-glow" target="_blank" rel="noopener">⬇ Скачать лаунчер</a>
     {% if user %}
-      <a href="{{ url_for('profile') }}" class="btn btn-glow">Перейти в профиль</a>
+      <a href="{{ url_for('profile') }}" class="btn btn-outline">Перейти в профиль</a>
     {% else %}
-      <a href="{{ url_for('register') }}" class="btn btn-glow">Начать бесплатно</a>
+      <a href="{{ url_for('register') }}" class="btn btn-outline">Начать бесплатно</a>
     {% endif %}
     <a href="#showcase" class="btn btn-outline">Смотреть интерфейс</a>
   </div>
