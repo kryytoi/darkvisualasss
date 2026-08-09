@@ -151,79 +151,84 @@
     <div class="bg-neutral-900/40 backdrop-blur-xl border border-white/10 rounded-[2.5rem] p-8">
       <h3 class="text-xl font-black mb-5">Библиотека</h3>
 
-      <div class="auth-tabs mb-6" style="max-width: 420px;">
-        <div class="auth-tab-indicator" id="libIndicator"></div>
-        <button type="button" class="auth-tab lib-tab active" data-target="libCosmetics">Косметика</button>
-        <button type="button" class="auth-tab lib-tab" data-target="libPacks">Ресурс-паки</button>
-        <button type="button" class="auth-tab lib-tab" data-target="libConfigs">Конфиги</button>
+      <div class="lib-tabs mb-6">
+        <div class="lib-tab-indicator" id="libIndicator"></div>
+        <button type="button" class="lib-tab active" data-index="0" data-target="libCosmetics">Косметика</button>
+        <button type="button" class="lib-tab" data-index="1" data-target="libPacks">Ресурс-паки</button>
+        <button type="button" class="lib-tab" data-index="2" data-target="libConfigs">Конфиги</button>
       </div>
 
-      {# ---- Косметика ---- #}
-      <div class="lib-panel grid sm:grid-cols-2 lg:grid-cols-3 gap-4" id="libCosmetics">
-        <div class="p-5 rounded-2xl bg-black/30 border border-white/10">
-          <div class="w-10 h-10 rounded-xl bg-purple-600/15 border border-purple-500/20 flex items-center justify-center mb-3">✦</div>
-          <h4 class="font-bold mb-1">ChinaHat</h4>
-          <p class="text-sm text-neutral-400 mb-4">Аниме-шляпа над персонажем во время боя.</p>
-          <span class="inline-block px-3 py-1 rounded-full bg-white/5 border border-white/10 text-xs text-neutral-400">Скоро</span>
-        </div>
-        <div class="p-5 rounded-2xl bg-black/30 border border-white/10">
-          <div class="w-10 h-10 rounded-xl bg-purple-600/15 border border-purple-500/20 flex items-center justify-center mb-3">❄</div>
-          <h4 class="font-bold mb-1">Snow Trail</h4>
-          <p class="text-sm text-neutral-400 mb-4">Снежный след при движении и прыжках.</p>
-          <span class="inline-block px-3 py-1 rounded-full bg-white/5 border border-white/10 text-xs text-neutral-400">Скоро</span>
-        </div>
-        <div class="p-5 rounded-2xl bg-black/30 border border-white/10">
-          <div class="w-10 h-10 rounded-xl bg-purple-600/15 border border-purple-500/20 flex items-center justify-center mb-3">◎</div>
-          <h4 class="font-bold mb-1">JumpCircle</h4>
-          <p class="text-sm text-neutral-400 mb-4">Кольцо частиц под ногами при прыжке.</p>
-          <span class="inline-block px-3 py-1 rounded-full bg-white/5 border border-white/10 text-xs text-neutral-400">Скоро</span>
-        </div>
+      <div class="lib-panel" id="libCosmetics">
+        <p class="text-center text-neutral-400 py-10">Скоро...</p>
       </div>
 
-      {# ---- Ресурс-паки ---- #}
-      <div class="lib-panel grid sm:grid-cols-2 lg:grid-cols-3 gap-4 hidden" id="libPacks">
-        <div class="p-5 rounded-2xl bg-black/30 border border-white/10">
-          <div class="w-10 h-10 rounded-xl bg-purple-600/15 border border-purple-500/20 flex items-center justify-center mb-3">🖼</div>
-          <h4 class="font-bold mb-1">Dark Visuals PvP Pack</h4>
-          <p class="text-sm text-neutral-400 mb-4">Короткий меч, чистые текстуры, минимальный UI.</p>
-          <span class="inline-block px-3 py-1 rounded-full bg-white/5 border border-white/10 text-xs text-neutral-400">Скоро</span>
-        </div>
-        <div class="p-5 rounded-2xl bg-black/30 border border-white/10">
-          <div class="w-10 h-10 rounded-xl bg-purple-600/15 border border-purple-500/20 flex items-center justify-center mb-3">🌑</div>
-          <h4 class="font-bold mb-1">Dark UI Pack</h4>
-          <p class="text-sm text-neutral-400 mb-4">Тёмная тема интерфейса и инвентаря.</p>
-          <span class="inline-block px-3 py-1 rounded-full bg-white/5 border border-white/10 text-xs text-neutral-400">Скоро</span>
-        </div>
+      <div class="lib-panel hidden" id="libPacks">
+        <p class="text-center text-neutral-400 py-10">Скоро...</p>
       </div>
 
-      {# ---- Конфиги ---- #}
-      <div class="lib-panel grid sm:grid-cols-2 lg:grid-cols-3 gap-4 hidden" id="libConfigs">
-        <div class="p-5 rounded-2xl bg-black/30 border border-white/10">
-          <div class="w-10 h-10 rounded-xl bg-purple-600/15 border border-purple-500/20 flex items-center justify-center mb-3">⚙</div>
-          <h4 class="font-bold mb-1">PvP Config от MrDarko</h4>
-          <p class="text-sm text-neutral-400 mb-4">Оптимальные настройки HUD, Crosshair и TargetEsp.</p>
-          <span class="inline-block px-3 py-1 rounded-full bg-white/5 border border-white/10 text-xs text-neutral-400">Скоро</span>
-        </div>
-        <div class="p-5 rounded-2xl bg-black/30 border border-white/10">
-          <div class="w-10 h-10 rounded-xl bg-purple-600/15 border border-purple-500/20 flex items-center justify-center mb-3">⚙</div>
-          <h4 class="font-bold mb-1">FPS Boost Config</h4>
-          <p class="text-sm text-neutral-400 mb-4">Минимум эффектов, максимум производительности.</p>
-          <span class="inline-block px-3 py-1 rounded-full bg-white/5 border border-white/10 text-xs text-neutral-400">Скоро</span>
-        </div>
+      <div class="lib-panel hidden" id="libConfigs">
+        <p class="text-center text-neutral-400 py-10">Скоро...</p>
       </div>
     </div>
 
   </div>
 </section>
 
+<style>
+.lib-tabs {
+  display: flex;
+  background: rgba(255, 255, 255, 0.04);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 16px;
+  padding: 5px;
+  position: relative;
+  max-width: 420px;
+}
+.lib-tab {
+  flex: 1;
+  text-align: center;
+  padding: 12px 10px;
+  border-radius: 12px;
+  font-weight: 700;
+  font-size: 14.5px;
+  color: var(--text-dim);
+  background: none;
+  border: none;
+  cursor: pointer;
+  transition: color 0.25s ease;
+  position: relative;
+  z-index: 1;
+  font-family: inherit;
+}
+.lib-tab.active { color: #fff; }
+.lib-tab-indicator {
+  position: absolute;
+  top: 5px;
+  left: 5px;
+  width: calc(33.333% - 5px);
+  height: calc(100% - 10px);
+  border-radius: 12px;
+  background: linear-gradient(135deg, var(--purple-light), var(--purple));
+  box-shadow: 0 6px 18px rgba(124, 58, 237, 0.45);
+  transition: transform 0.35s cubic-bezier(0.2, 0.8, 0.2, 1);
+  z-index: 0;
+}
+</style>
+
 <script>
 (function () {
   var tabs = document.querySelectorAll('.lib-tab');
   var panels = document.querySelectorAll('.lib-panel');
+  var indicator = document.getElementById('libIndicator');
+
   tabs.forEach(function (tab) {
     tab.addEventListener('click', function () {
       tabs.forEach(function (t) { t.classList.remove('active'); });
       tab.classList.add('active');
+
+      var index = parseInt(tab.getAttribute('data-index'), 10);
+      indicator.style.transform = 'translateX(' + (index * 100) + '%)';
+
       var target = tab.getAttribute('data-target');
       panels.forEach(function (p) {
         p.classList.toggle('hidden', p.id !== target);
