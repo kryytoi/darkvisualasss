@@ -32,11 +32,12 @@ session_serializer = URLSafeTimedSerializer(app.secret_key, salt="darkvisuals-mo
 
 SESSION_TTL_SECONDS = int(os.environ.get("SESSION_TTL_SECONDS", "3600"))
 
+IS_PRODUCTION = bool(os.environ.get("VERCEL")) or bool(os.environ.get("DATABASE_URL"))
+
 app.config["PERMANENT_SESSION_LIFETIME"] = timedelta(days=30)
 app.config["SESSION_COOKIE_HTTPONLY"] = True
 app.config["SESSION_COOKIE_SAMESITE"] = "Lax"
-app.config["SESSION_COOKIE_SECURE"] = True  # на Vercel всегда HTTPS
-
+app.config["SESSION_COOKIE_SECURE"] = IS_PRODUCTION
 @app.after_request
 def add_no_cache_headers(resp):
     # Не кэшируем HTML-страницы (особенно приватные, вроде /profile)
