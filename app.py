@@ -1204,38 +1204,6 @@ def api_get_user_achievements():
     return jsonify({"valid": True, "achievements": achievements}), 200
 
 
-@app.route("/admin/achievements/create", methods=["POST"])
-def admin_create_achievement():
-    user = current_user()
-    if not user or not user.get("is_admin"):
-        return "Доступ запрещен", 403
-
-    name = request.form.get("name", "").strip()
-    description = request.form.get("description", "").strip()
-    image_url = request.form.get("image_url", "").strip()
-    unlock_feature = request.form.get("unlock_feature", "").strip()
-
-    if not name:
-        flash("Название достижения не может быть пустым!", "error")
-        return redirect(url_for("admin_panel"))
-
-    db = get_db()
-    code = generate_achievement_code(name)
-    while fetchone(db, "SELECT id FROM achievements WHERE code = %s", (code,)):
-        code = generate_achievement_code(name)
-
-    execute(
-        db,
-        """
-        INSERT INTO achievements (code, name, description, image_url, unlock_feature, created_at)
-        VALUES (%s, %s, %s, %s, %s, %s)
-        """,
-        (code, name, description, image_url, unlock_feature, datetime.utcnow().isoformat()),
-    )
-    db.close()
-
-    flash(f"Достижение «{name}» создано (код: {code})!", "success")
-    return redirect(url_for("admin_panel"))
 
 
 @app.route("/admin/achievements/delete", methods=["POST"])
