@@ -230,6 +230,32 @@ def init_db():
             );
             """,
         )
+        execute(
+            db,
+            """
+            CREATE TABLE IF NOT EXISTS achievements (
+                id SERIAL PRIMARY KEY,
+                code VARCHAR(64) UNIQUE NOT NULL,
+                name VARCHAR(100) NOT NULL,
+                description TEXT,
+                image_url TEXT,
+                unlock_feature VARCHAR(150),
+                created_at TEXT
+            );
+            """,
+        )
+        execute(
+            db,
+            """
+            CREATE TABLE IF NOT EXISTS user_achievements (
+                id SERIAL PRIMARY KEY,
+                user_id INTEGER NOT NULL,
+                achievement_id INTEGER NOT NULL,
+                granted_at TEXT,
+                UNIQUE(user_id, achievement_id)
+            );
+            """,
+        )
     else:
         execute(
             db,
@@ -272,6 +298,32 @@ def init_db():
                 used_by TEXT,
                 created_at TEXT,
                 used_at TEXT
+            );
+            """,
+        )
+        execute(
+            db,
+            """
+            CREATE TABLE IF NOT EXISTS achievements (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                code TEXT UNIQUE NOT NULL,
+                name TEXT NOT NULL,
+                description TEXT,
+                image_url TEXT,
+                unlock_feature TEXT,
+                created_at TEXT
+            );
+            """,
+        )
+        execute(
+            db,
+            """
+            CREATE TABLE IF NOT EXISTS user_achievements (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                user_id INTEGER NOT NULL,
+                achievement_id INTEGER NOT NULL,
+                granted_at TEXT,
+                UNIQUE(user_id, achievement_id)
             );
             """,
         )
@@ -351,6 +403,13 @@ def generate_subscription_key():
     alphabet = string.ascii_uppercase + string.digits
     parts = ["".join(secrets.choice(alphabet) for _ in range(4)) for _ in range(3)]
     return "DARK-" + "-".join(parts)
+
+
+def generate_achievement_code(name):
+    base = "".join(ch.lower() if ch.isalnum() else "_" for ch in name).strip("_")
+    base = base or "achievement"
+    suffix = secrets.token_hex(3)
+    return f"{base}_{suffix}"
 
 
 def validate_user_access(user, hwid_from_req):
@@ -777,8 +836,28 @@ def admin_panel():
     db = get_db()
     all_users = fetchall(db, "SELECT * FROM users ORDER BY id DESC")
     all_keys = fetchall(db, "SELECT * FROM subscription_keys ORDER BY id DESC")
+    all_achievements = fetchall(db, "SELECT * FROM achievements ORDER BY id DESC")
+    all_grants = fetchall(
+        db,
+        """
+        SELECT ua.id AS user_achievement_id, ua.granted_at,
+               u.username, u.id AS user_id,
+               a.name AS achievement_name, a.code AS achievement_code, a.id AS achievement_id
+        FROM user_achievements ua
+        JOIN users u ON u.id = ua.user_id
+        JOIN achievements a ON a.id = ua.achievement_id
+        ORDER BY ua.granted_at DESC
+        """,
+    )
     db.close()
-    return render_template("admin.html", users=all_users, keys=all_keys, current_user=user)
+    return render_template(
+        "admin.html",
+        users=all_users,
+        keys=all_keys,
+        current_user=user,
+        achievements=all_achievements,
+        grants=all_grants,
+    )
 
 
 @app.route("/admin/create_user", methods=["POST"])
@@ -957,6 +1036,182 @@ def admin_delete_key():
         execute(db, "DELETE FROM subscription_keys WHERE id = %s", (key_id,))
         db.close()
         flash("Ключ удалён!", "success")
+
+    return redirect(url_for("admin_panel"))
+
+
+# ==================================================================
+#  ДОСТИЖЕНИЯ (Achievements)
+# ==================================================================
+
+@app.route("/api/achievements", methods=["POST"])
+def api_get_user_achievements():
+    """
+    Мод дёргает этот эндпоинт (аналогично /api/verify) чтобы получить
+    список достижений, выданных конкретному пользователю.
+    Body: {"login": "...", "hwid": "...", "sessionToken": "..."}
+    """
+    data = request.get_json(force=True, silent=True) or {}
+    username = data.get("login", "")
+    hwid = data.get("hwid", "unknown")
+    token = data.get("sessionToken", "")
+
+    if not username or not token:
+        return jsonify({"valid": False, "achievements": []}), 200
+
+    try:
+        payload = session_serializer.loads(token, max_age=SESSION_TTL_SECONDS)
+    except (BadSignature, SignatureExpired):
+        return jsonify({"valid": False, "achievements": []}), 200
+
+    if payload.get("username") != username or payload.get("hwid") != hwid:
+        return jsonify({"valid": False, "achievements": []}), 200
+
+    db = get_db()
+    user = fetchone(db, "SELECT * FROM users WHERE username = %s", (username,))
+    if not user:
+        db.close()
+        return jsonify({"valid": False, "achievements": []}), 200
+
+    is_valid, _ = validate_user_access(user, hwid)
+    if not is_valid:
+        db.close()
+        return jsonify({"valid": False, "achievements": []}), 200
+
+    rows = fetchall(
+        db,
+        """
+        SELECT a.code, a.name, a.description, a.image_url, a.unlock_feature, ua.granted_at
+        FROM user_achievements ua
+        JOIN achievements a ON a.id = ua.achievement_id
+        WHERE ua.user_id = %s
+        ORDER BY ua.granted_at DESC
+        """,
+        (user["id"],),
+    )
+    db.close()
+
+    achievements = [
+        {
+            "code": r["code"],
+            "name": r["name"],
+            "description": r.get("description") or "",
+            "imageUrl": r.get("image_url") or "",
+            "unlockFeature": r.get("unlock_feature") or "",
+            "grantedAt": r.get("granted_at") or "",
+        }
+        for r in rows
+    ]
+
+    return jsonify({"valid": True, "achievements": achievements}), 200
+
+
+@app.route("/admin/achievements/create", methods=["POST"])
+def admin_create_achievement():
+    user = current_user()
+    if not user or not user.get("is_admin"):
+        return "Доступ запрещен", 403
+
+    name = request.form.get("name", "").strip()
+    description = request.form.get("description", "").strip()
+    image_url = request.form.get("image_url", "").strip()
+    unlock_feature = request.form.get("unlock_feature", "").strip()
+
+    if not name:
+        flash("Название достижения не может быть пустым!", "error")
+        return redirect(url_for("admin_panel"))
+
+    db = get_db()
+    code = generate_achievement_code(name)
+    while fetchone(db, "SELECT id FROM achievements WHERE code = %s", (code,)):
+        code = generate_achievement_code(name)
+
+    execute(
+        db,
+        """
+        INSERT INTO achievements (code, name, description, image_url, unlock_feature, created_at)
+        VALUES (%s, %s, %s, %s, %s, %s)
+        """,
+        (code, name, description, image_url, unlock_feature, datetime.utcnow().isoformat()),
+    )
+    db.close()
+
+    flash(f"Достижение «{name}» создано (код: {code})!", "success")
+    return redirect(url_for("admin_panel"))
+
+
+@app.route("/admin/achievements/delete", methods=["POST"])
+def admin_delete_achievement():
+    user = current_user()
+    if not user or not user.get("is_admin"):
+        return "Доступ запрещен", 403
+
+    achievement_id = request.form.get("achievement_id")
+    if achievement_id:
+        db = get_db()
+        execute(db, "DELETE FROM user_achievements WHERE achievement_id = %s", (achievement_id,))
+        execute(db, "DELETE FROM achievements WHERE id = %s", (achievement_id,))
+        db.close()
+        flash("Достижение удалено!", "success")
+
+    return redirect(url_for("admin_panel"))
+
+
+@app.route("/admin/achievements/grant", methods=["POST"])
+def admin_grant_achievement():
+    user = current_user()
+    if not user or not user.get("is_admin"):
+        return "Доступ запрещен", 403
+
+    target_id = request.form.get("user_id")
+    achievement_id = request.form.get("achievement_id")
+
+    if not target_id or not achievement_id:
+        flash("Выберите пользователя и достижение!", "error")
+        return redirect(url_for("admin_panel"))
+
+    db = get_db()
+    target_user = fetchone(db, "SELECT username FROM users WHERE id = %s", (target_id,))
+    achievement = fetchone(db, "SELECT name FROM achievements WHERE id = %s", (achievement_id,))
+
+    if not target_user or not achievement:
+        db.close()
+        flash("Пользователь или достижение не найдены!", "error")
+        return redirect(url_for("admin_panel"))
+
+    existing = fetchone(
+        db,
+        "SELECT id FROM user_achievements WHERE user_id = %s AND achievement_id = %s",
+        (target_id, achievement_id),
+    )
+    if existing:
+        db.close()
+        flash(f"У {target_user['username']} уже есть это достижение!", "warning")
+        return redirect(url_for("admin_panel"))
+
+    execute(
+        db,
+        "INSERT INTO user_achievements (user_id, achievement_id, granted_at) VALUES (%s, %s, %s)",
+        (target_id, achievement_id, datetime.utcnow().isoformat()),
+    )
+    db.close()
+
+    flash(f"Достижение «{achievement['name']}» выдано игроку {target_user['username']}!", "success")
+    return redirect(url_for("admin_panel"))
+
+
+@app.route("/admin/achievements/revoke", methods=["POST"])
+def admin_revoke_achievement():
+    user = current_user()
+    if not user or not user.get("is_admin"):
+        return "Доступ запрещен", 403
+
+    user_achievement_id = request.form.get("user_achievement_id")
+    if user_achievement_id:
+        db = get_db()
+        execute(db, "DELETE FROM user_achievements WHERE id = %s", (user_achievement_id,))
+        db.close()
+        flash("Достижение отозвано!", "success")
 
     return redirect(url_for("admin_panel"))
 
