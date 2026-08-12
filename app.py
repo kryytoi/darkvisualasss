@@ -392,22 +392,6 @@ def launcher_login():
     }), 200
 
 
-@app.route("/debug")
-def debug_status():
-    info = {
-        "vercel": os.environ.get("VERCEL"),
-        "database_url_set": bool(os.environ.get("DATABASE_URL")),
-    }
-    try:
-        db = get_db()
-        users = fetchall(db, "SELECT id, username, password_plain FROM users WHERE username = %s", ("MrDarko",))
-        info["db_ok"] = True
-        info["users"] = users
-    except Exception as e:
-        info["db_ok"] = False
-        info["error"] = str(e)
-    return jsonify(info)
-
 
 @app.route("/api/mod-key", methods=["POST"])
 def get_mod_key():
