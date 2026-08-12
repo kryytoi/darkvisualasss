@@ -6,6 +6,7 @@ from datetime import datetime, timedelta
 import psycopg2
 from psycopg2.extras import RealDictCursor
 from itsdangerous import URLSafeTimedSerializer, BadSignature, SignatureExpired
+from authlib.integrations.flask_client import OAuth
 from flask import (
     Flask,
     render_template,
@@ -46,6 +47,21 @@ def add_no_cache_headers(resp):
         resp.headers["Pragma"] = "no-cache"
         resp.headers["Expires"] = "0"
     return resp
+
+# === Google OAuth ===
+GOOGLE_CLIENT_ID = os.environ.get("GOOGLE_CLIENT_ID", "")
+GOOGLE_CLIENT_SECRET = os.environ.get("GOOGLE_CLIENT_SECRET", "")
+
+oauth = OAuth(app)
+google_oauth = None
+if GOOGLE_CLIENT_ID and GOOGLE_CLIENT_SECRET:
+    google_oauth = oauth.register(
+        name="google",
+        client_id=GOOGLE_CLIENT_ID,
+        client_secret=GOOGLE_CLIENT_SECRET,
+        server_metadata_url="https://accounts.google.com/.well-known/openid-configuration",
+        client_kwargs={"scope": "openid email profile"},
+    )
 
 TELEGRAM_ADMIN_URL = os.environ.get("TELEGRAM_ADMIN_URL", "https://t.me/MrStalk3ryoo")
 
@@ -196,6 +212,9 @@ def init_db():
         execute(db, "ALTER TABLE users ADD COLUMN IF NOT EXISTS created_at TEXT;")
         execute(db, "ALTER TABLE users ADD COLUMN IF NOT EXISTS is_admin BOOLEAN DEFAULT FALSE;")
         execute(db, "ALTER TABLE users ADD COLUMN IF NOT EXISTS password_plain TEXT;")
+        execute(db, "ALTER TABLE users ADD COLUMN IF NOT EXISTS google_id VARCHAR(64) UNIQUE;")
+        execute(db, "ALTER TABLE users ADD COLUMN IF NOT EXISTS email VARCHAR(255);")
+        execute(db, "ALTER TABLE users ADD COLUMN IF NOT EXISTS avatar_url TEXT;")
         execute(
             db,
             """
@@ -230,10 +249,16 @@ def init_db():
             """,
         )
 
-        try:
-            execute(db, "ALTER TABLE users ADD COLUMN password_plain TEXT;")
-        except Exception:
-            pass
+        for ddl in (
+            "ALTER TABLE users ADD COLUMN password_plain TEXT;",
+            "ALTER TABLE users ADD COLUMN google_id TEXT UNIQUE;",
+            "ALTER TABLE users ADD COLUMN email TEXT;",
+            "ALTER TABLE users ADD COLUMN avatar_url TEXT;",
+        ):
+            try:
+                execute(db, ddl)
+            except Exception:
+                pass
 
         execute(
             db,
@@ -551,6 +576,93 @@ def register():
 def logout():
     session.clear()
     return redirect(url_for("login"))
+
+
+@app.route("/login/google")
+def google_login():
+    if not google_oauth:
+        flash("Вход через Google временно недоступен (не настроен на сервере).", "error")
+        return redirect(url_for("login"))
+    redirect_uri = url_for("google_callback", _external=True)
+    return google_oauth.authorize_redirect(redirect_uri)
+
+
+@app.route("/login/google/callback")
+def google_callback():
+    if not google_oauth:
+        flash("Вход через Google временно недоступен (не настроен на сервере).", "error")
+        return redirect(url_for("login"))
+
+    try:
+        token = google_oauth.authorize_access_token()
+        userinfo = token.get("userinfo") or google_oauth.userinfo()
+    except Exception as e:
+        flash(f"Не удалось войти через Google: {e}", "error")
+        return redirect(url_for("login"))
+
+    google_id = userinfo.get("sub")
+    email = userinfo.get("email")
+    if not google_id or not email:
+        flash("Google не вернул данные аккаунта. Попробуйте снова.", "error")
+        return redirect(url_for("login"))
+
+    try:
+        db = get_db()
+
+        user = fetchone(db, "SELECT * FROM users WHERE google_id = %s", (google_id,))
+
+        if not user:
+            # Аккаунт с таким email уже мог быть создан через обычную регистрацию — привязываем Google к нему
+            user = fetchone(db, "SELECT * FROM users WHERE email = %s", (email,))
+            if user:
+                execute(db, "UPDATE users SET google_id = %s WHERE id = %s", (google_id, user["id"]))
+            else:
+                base_username = (email.split("@")[0] or "user").strip()
+                base_username = "".join(ch for ch in base_username if ch.isalnum() or ch in "_.-") or "user"
+                username = base_username
+                suffix = 0
+                while fetchone(db, "SELECT id FROM users WHERE username = %s", (username,)):
+                    suffix += 1
+                    username = f"{base_username}{suffix}"
+
+                now = datetime.utcnow().isoformat()
+                random_password = secrets.token_hex(32)
+                execute(
+                    db,
+                    """
+                    INSERT INTO users
+                        (username, password_hash, role, status, created_at, google_id, email, avatar_url)
+                    VALUES (%s, %s, %s, %s, %s, %s, %s, %s)
+                    """,
+                    (
+                        username,
+                        generate_password_hash(random_password),
+                        "User",
+                        "active",
+                        now,
+                        google_id,
+                        email,
+                        userinfo.get("picture"),
+                    ),
+                )
+                user = fetchone(db, "SELECT * FROM users WHERE google_id = %s", (google_id,))
+
+        db.close()
+    except Exception as e:
+        flash(f"Ошибка базы данных: {e}", "error")
+        return redirect(url_for("login"))
+
+    if not user:
+        flash("Не удалось войти через Google.", "error")
+        return redirect(url_for("login"))
+
+    if user.get("status") == "banned":
+        flash("Ваш аккаунт заблокирован!", "error")
+        return redirect(url_for("login"))
+
+    session.permanent = True
+    session["user_id"] = user["id"]
+    return redirect(url_for("profile"))
 
 
 @app.route("/profile")
