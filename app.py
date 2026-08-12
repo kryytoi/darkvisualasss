@@ -2,6 +2,10 @@ import os
 import secrets
 import string
 import sqlite3
+import base64
+import uuid
+import requests
+from werkzeug.utils import secure_filename
 from datetime import datetime, timedelta
 import psycopg2
 from psycopg2.extras import RealDictCursor
@@ -130,6 +134,104 @@ MOD_FILE_URL = os.environ.get(
     "MOD_FILE_URL",
     "https://raw.githubusercontent.com/kryytoi/WDdwdw/refs/heads/main/darkvisuals.enc",
 )
+GITHUB_TOKEN = os.environ.get("GITHUB_TOKEN", "")
+GITHUB_REPO = os.environ.get("GITHUB_REPO", "kryytoi/darkvisualasss")
+GITHUB_BRANCH = os.environ.get("GITHUB_BRANCH", "main")
+GITHUB_ACHIEVEMENTS_PATH = os.environ.get("GITHUB_ACHIEVEMENTS_PATH", "static/adviencement")
+
+ALLOWED_ICON_EXTENSIONS = {"png", "jpg", "jpeg", "gif", "webp"}
+
+
+def allowed_icon_file(filename):
+    return "." in filename and filename.rsplit(".", 1)[1].lower() in ALLOWED_ICON_EXTENSIONS
+
+
+def upload_achievement_icon_to_github(file_storage):
+    """
+    Загружает иконку достижения в репозиторий сайта на GitHub через Contents API
+    (в папку GITHUB_ACHIEVEMENTS_PATH, отдельную от остальных файлов сайта),
+    и возвращает прямую ссылку на файл (raw.githubusercontent.com) для поля image_url.
+
+    Возвращает (url, error_message). Если ошибка — url будет None.
+    """
+    if not file_storage or not file_storage.filename:
+        return None, None
+
+    if not allowed_icon_file(file_storage.filename):
+        return None, "Недопустимый формат файла! Разрешены: png, jpg, jpeg, gif, webp."
+
+    if not GITHUB_TOKEN:
+        return None, "Загрузка иконок не настроена на сервере (нет GITHUB_TOKEN)."
+
+    original_name = secure_filename(file_storage.filename)
+    ext = original_name.rsplit(".", 1)[1].lower()
+    unique_name = f"{uuid.uuid4().hex}.{ext}"
+    repo_path = f"{GITHUB_ACHIEVEMENTS_PATH}/{unique_name}"
+
+    file_bytes = file_storage.read()
+    if not file_bytes:
+        return None, "Файл иконки пустой!"
+
+    content_b64 = base64.b64encode(file_bytes).decode("ascii")
+
+    api_url = f"https://api.github.com/repos/{GITHUB_REPO}/contents/{repo_path}"
+    headers = {
+        "Authorization": f"Bearer {GITHUB_TOKEN}",
+        "Accept": "application/vnd.github+json",
+    }
+    payload = {
+        "message": f"Add achievement icon {unique_name}",
+        "content": content_b64,
+        "branch": GITHUB_BRANCH,
+    }
+
+    try:
+        resp = requests.put(api_url, headers=headers, json=payload, timeout=20)
+    except requests.RequestException as e:
+        return None, f"Не удалось связаться с GitHub: {e}"
+
+    if resp.status_code not in (200, 201):
+        return None, f"GitHub вернул ошибку ({resp.status_code}): {resp.text[:200]}"
+
+    raw_url = f"https://raw.githubusercontent.com/{GITHUB_REPO}/{GITHUB_BRANCH}/{repo_path}"
+    return raw_url, None
+
+
+def delete_achievement_icon_from_github(image_url):
+    """
+    Удаляет файл иконки из репозитория GitHub по его raw-ссылке,
+    если она указывает на нашу папку GITHUB_ACHIEVEMENTS_PATH.
+    Тихо игнорирует ошибки — удаление иконки не критично для удаления достижения.
+    """
+    if not image_url or not GITHUB_TOKEN:
+        return
+
+    prefix = f"https://raw.githubusercontent.com/{GITHUB_REPO}/{GITHUB_BRANCH}/{GITHUB_ACHIEVEMENTS_PATH}/"
+    if not image_url.startswith(prefix):
+        return
+
+    repo_path = f"{GITHUB_ACHIEVEMENTS_PATH}/{image_url[len(prefix):]}"
+    api_url = f"https://api.github.com/repos/{GITHUB_REPO}/contents/{repo_path}"
+    headers = {
+        "Authorization": f"Bearer {GITHUB_TOKEN}",
+        "Accept": "application/vnd.github+json",
+    }
+
+    try:
+        get_resp = requests.get(api_url, headers=headers, params={"ref": GITHUB_BRANCH}, timeout=15)
+        if get_resp.status_code != 200:
+            return
+        sha = get_resp.json().get("sha")
+        if not sha:
+            return
+        requests.delete(
+            api_url,
+            headers=headers,
+            json={"message": f"Remove achievement icon {repo_path}", "sha": sha, "branch": GITHUB_BRANCH},
+            timeout=15,
+        )
+    except requests.RequestException:
+        pass
 
 
 def get_db():
@@ -860,51 +962,47 @@ def admin_panel():
     )
 
 
-@app.route("/admin/create_user", methods=["POST"])
-def admin_create_user():
+@app.route("/admin/achievements/create", methods=["POST"])
+def admin_create_achievement():
     user = current_user()
     if not user or not user.get("is_admin"):
         return "Доступ запрещен", 403
 
-    username = request.form.get("username", "").strip()
-    password = request.form.get("password", "")
-    days = str(request.form.get("days", "0")).strip().lower()
+    name = request.form.get("name", "").strip()
+    description = request.form.get("description", "").strip()
+    image_url = request.form.get("image_url", "").strip()
+    unlock_feature = request.form.get("unlock_feature", "").strip()
+    icon_file = request.files.get("image_file")
 
-    if not username or not password:
-        flash("Логин и пароль не могут быть пустыми!", "error")
+    if not name:
+        flash("Название достижения не может быть пустым!", "error")
         return redirect(url_for("admin_panel"))
+
+    # Если загружен файл — он приоритетнее ссылки, грузим его на GitHub
+    if icon_file and icon_file.filename:
+        uploaded_url, upload_error = upload_achievement_icon_to_github(icon_file)
+        if upload_error:
+            flash(upload_error, "error")
+            return redirect(url_for("admin_panel"))
+        if uploaded_url:
+            image_url = uploaded_url
 
     db = get_db()
-    exists = fetchone(db, "SELECT id FROM users WHERE username = %s", (username,))
-    if exists:
-        db.close()
-        flash("Пользователь с таким ником уже существует!", "error")
-        return redirect(url_for("admin_panel"))
-
-    now = datetime.utcnow()
-    expires_at = None
-
-    if days in ["forever", "навсегда"]:
-        expires_at = "forever"
-    elif days.isdigit() and int(days) > 0:
-        expires_at = (now + timedelta(days=int(days))).isoformat()
+    code = generate_achievement_code(name)
+    while fetchone(db, "SELECT id FROM achievements WHERE code = %s", (code,)):
+        code = generate_achievement_code(name)
 
     execute(
         db,
-        "INSERT INTO users (username, password_hash, password_plain, plan, expires_at, created_at) "
-        "VALUES (%s, %s, %s, %s, %s, %s)",
-        (
-            username,
-            generate_password_hash(password),
-            password,
-            "Active" if expires_at else None,
-            expires_at,
-            now.isoformat(),
-        ),
+        """
+        INSERT INTO achievements (code, name, description, image_url, unlock_feature, created_at)
+        VALUES (%s, %s, %s, %s, %s, %s)
+        """,
+        (code, name, description, image_url, unlock_feature, datetime.utcnow().isoformat()),
     )
     db.close()
 
-    flash(f"Пользователь {username} успешно создан!", "success")
+    flash(f"Достижение «{name}» создано (код: {code})!", "success")
     return redirect(url_for("admin_panel"))
 
 
@@ -1149,9 +1247,14 @@ def admin_delete_achievement():
     achievement_id = request.form.get("achievement_id")
     if achievement_id:
         db = get_db()
+        achievement = fetchone(db, "SELECT image_url FROM achievements WHERE id = %s", (achievement_id,))
         execute(db, "DELETE FROM user_achievements WHERE achievement_id = %s", (achievement_id,))
         execute(db, "DELETE FROM achievements WHERE id = %s", (achievement_id,))
         db.close()
+
+        if achievement:
+            delete_achievement_icon_from_github(achievement.get("image_url"))
+
         flash("Достижение удалено!", "success")
 
     return redirect(url_for("admin_panel"))
