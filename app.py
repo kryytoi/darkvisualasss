@@ -962,6 +962,53 @@ def admin_panel():
     )
 
 
+@app.route("/admin/create_user", methods=["POST"])
+def admin_create_user():
+    user = current_user()
+    if not user or not user.get("is_admin"):
+        return "Доступ запрещен", 403
+
+    username = request.form.get("username", "").strip()
+    password = request.form.get("password", "").strip()
+    raw_days = request.form.get("days", "").strip()
+
+    if not username or not password:
+        flash("Логин и пароль обязательны!", "error")
+        return redirect(url_for("admin_panel"))
+
+    db = get_db()
+    existing = fetchone(db, "SELECT id FROM users WHERE username = %s", (username,))
+    if existing:
+        db.close()
+        flash("Пользователь с таким логином уже существует!", "error")
+        return redirect(url_for("admin_panel"))
+
+    now = datetime.utcnow().isoformat()
+    execute(
+        db,
+        """
+        INSERT INTO users (username, password_hash, password_plain, role, status, created_at, is_admin, plan)
+        VALUES (%s, %s, %s, %s, %s, %s, %s, %s)
+        """,
+        (username, generate_password_hash(password), password, "User", "active", now, False, None),
+    )
+
+    new_user = fetchone(db, "SELECT id FROM users WHERE username = %s", (username,))
+
+    if raw_days and new_user:
+        ok, msg = apply_subscription_days(db, new_user["id"], raw_days)
+        db.close()
+        if ok:
+            flash(f"Пользователь «{username}» создан! {msg}", "success")
+        else:
+            flash(f"Пользователь «{username}» создан, но подписку выдать не удалось: {msg}", "warning")
+    else:
+        db.close()
+        flash(f"Пользователь «{username}» создан!", "success")
+
+    return redirect(url_for("admin_panel"))
+
+
 @app.route("/admin/achievements/create", methods=["POST"])
 def admin_create_achievement():
     user = current_user()
