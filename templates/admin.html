@@ -85,6 +85,131 @@
         {% endif %}
     </div>
 
+    <!-- ================================================================= -->
+<!-- БЛОК 1: ВЫДАЧА ДОСТИЖЕНИЯ ИГРОКУ -->
+<!-- ================================================================= -->
+<div style="background: #1a1a24; padding: 25px; border-radius: 12px; margin-bottom: 30px; border: 1px solid #2a2a3a;">
+    <h3 style="margin-top: 0; margin-bottom: 15px;">🏆 Выдать достижение игроку</h3>
+    <form action="{{ url_for('admin_grant_achievement') }}" method="POST" style="display: flex; gap: 15px; flex-wrap: wrap; align-items: center;">
+        <select name="user_id" required style="background: #0f0f15; border: 1px solid #333; color: #fff; padding: 10px 15px; border-radius: 6px; flex: 1; min-width: 200px;">
+            <option value="" disabled selected>Выберите игрока...</option>
+            {% for u in users %}
+                <option value="{{ u.id }}">{{ u.username }} (ID: {{ u.id }})</option>
+            {% endfor %}
+        </select>
+
+        <select name="achievement_id" required style="background: #0f0f15; border: 1px solid #333; color: #fff; padding: 10px 15px; border-radius: 6px; flex: 1; min-width: 200px;">
+            <option value="" disabled selected>Выберите достижение...</option>
+            {% for a in achievements %}
+                <option value="{{ a.id }}">{{ a.name }} [{{ a.code }}]</option>
+            {% endfor %}
+        </select>
+
+        <button type="submit" style="background: #2e7d32; color: #fff; border: none; padding: 10px 25px; border-radius: 6px; cursor: pointer; font-weight: bold; transition: 0.2s;">
+            Выдать
+        </button>
+    </form>
+</div>
+
+<!-- ================================================================= -->
+<!-- БЛОК 2: СПИСОК ВЫДАННЫХ ДОСТИЖЕНИЙ (С ВОЗМОЖНОСТЬЮ ЗАБРАТЬ) -->
+<!-- ================================================================= -->
+<div style="background: #1a1a24; padding: 25px; border-radius: 12px; margin-bottom: 30px; border: 1px solid #2a2a3a; overflow-x: auto;">
+    <h3 style="margin-top: 0; margin-bottom: 20px;">📜 Выданные достижения игроков ({{ grants|length }})</h3>
+    {% if grants %}
+    <table style="width: 100%; border-collapse: collapse; text-align: left;">
+        <thead>
+            <tr style="border-bottom: 2px solid #2a2a3a; color: #888;">
+                <th style="padding: 10px;">Игрок</th>
+                <th style="padding: 10px;">Достижение</th>
+                <th style="padding: 10px;">Код</th>
+                <th style="padding: 10px;">Дата выдачи</th>
+                <th style="padding: 10px;">Действие</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for g in grants %}
+            <tr style="border-bottom: 1px solid #222230;">
+                <td style="padding: 10px;"><strong>{{ g.username }}</strong></td>
+                <td style="padding: 10px; color: #a78bfa;">{{ g.achievement_name }}</td>
+                <td style="padding: 10px; font-family: monospace; color: #aaa; font-size: 12px;">{{ g.achievement_code }}</td>
+                <td style="padding: 10px; color: #888; font-size: 12px;">{{ (g.granted_at or '')[:16].replace('T', ' ') }}</td>
+                <td style="padding: 10px;">
+                    <form action="{{ url_for('admin_revoke_achievement') }}" method="POST" style="display: inline;">
+                        <input type="hidden" name="user_achievement_id" value="{{ g.user_achievement_id }}">
+                        <button type="submit" onclick="return confirm('Забрать это достижение у игрока {{ g.username }}?');" style="background: #c62828; color: #fff; border: none; padding: 6px 12px; border-radius: 4px; cursor: pointer; font-size: 12px; font-weight: bold;">
+                            Забрать
+                        </button>
+                    </form>
+                </td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+    {% else %}
+    <p style="color: #666; margin-top: 10px;">Пока ни одному игроку не выписаны достижения.</p>
+    {% endif %}
+</div>
+
+<!-- ================================================================= -->
+<!-- БЛОК 3: СОЗДАНИЕ И СПИСОК ВСЕХ ДОСТИЖЕНИЙ -->
+<!-- ================================================================= -->
+<div style="background: #1a1a24; padding: 25px; border-radius: 12px; margin-bottom: 30px; border: 1px solid #2a2a3a;">
+    <h3 style="margin-top: 0; margin-bottom: 15px;">🛠️ Создать новое достижение</h3>
+    <form action="{{ url_for('admin_create_achievement') }}" method="POST" enctype="multipart/form-data" style="display: flex; flex-direction: column; gap: 12px;">
+        <div style="display: flex; gap: 12px; flex-wrap: wrap;">
+            <input type="text" name="name" placeholder="Название (напр., Первый шаг)" required style="background: #0f0f15; border: 1px solid #333; color: #fff; padding: 10px; border-radius: 6px; flex: 1; min-width: 200px;">
+            <input type="text" name="unlock_feature" placeholder="Анлок фичи (напр., custom_cape)" style="background: #0f0f15; border: 1px solid #333; color: #fff; padding: 10px; border-radius: 6px; flex: 1; min-width: 200px;">
+        </div>
+        <textarea name="description" placeholder="Описание достижения..." style="background: #0f0f15; border: 1px solid #333; color: #fff; padding: 10px; border-radius: 6px; min-height: 50px; resize: vertical;"></textarea>
+        <div style="display: flex; gap: 12px; flex-wrap: wrap; align-items: center;">
+            <input type="text" name="image_url" placeholder="Ссылка на иконку (URL, опционально)" style="background: #0f0f15; border: 1px solid #333; color: #fff; padding: 10px; border-radius: 6px; flex: 1; min-width: 250px;">
+            <label style="color: #aaa; font-size: 13px;">Или файл: <input type="file" name="image_file" accept="image/*" style="color: #fff;"></label>
+            <button type="submit" style="background: #6d28d9; color: #fff; border: none; padding: 10px 20px; border-radius: 6px; cursor: pointer; font-weight: bold;">Создать достижение</button>
+        </div>
+    </form>
+
+    {% if achievements %}
+    <h4 style="margin-top: 25px; margin-bottom: 10px; color: #aaa;">Существующие достижения:</h4>
+    <table style="width: 100%; border-collapse: collapse; text-align: left;">
+        <thead>
+            <tr style="border-bottom: 2px solid #2a2a3a; color: #888;">
+                <th style="padding: 8px;">Иконка</th>
+                <th style="padding: 8px;">Название / Код</th>
+                <th style="padding: 8px;">Описание</th>
+                <th style="padding: 8px;">Функция</th>
+                <th style="padding: 8px;">Действие</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for a in achievements %}
+            <tr style="border-bottom: 1px solid #222230;">
+                <td style="padding: 8px;">
+                    {% if a.image_url %}
+                        <img src="{{ a.image_url }}" alt="" style="width: 32px; height: 32px; object-fit: contain; border-radius: 4px;">
+                    {% else %}
+                        🏆
+                    {% endif %}
+                </td>
+                <td style="padding: 8px;">
+                    <strong>{{ a.name }}</strong><br>
+                    <small style="font-family: monospace; color: #888;">{{ a.code }}</small>
+                </td>
+                <td style="padding: 8px; color: #bbb; font-size: 13px;">{{ a.description or '—' }}</td>
+                <td style="padding: 8px; color: #a78bfa; font-size: 13px;">{{ a.unlock_feature or '—' }}</td>
+                <td style="padding: 8px;">
+                    <form action="{{ url_for('admin_delete_achievement') }}" method="POST" style="display: inline;">
+                        <input type="hidden" name="achievement_id" value="{{ a.id }}">
+                        <button type="submit" onclick="return confirm('Удалить достижение «{{ a.name }}» и забрать его у всех игроков?');" style="background: #c62828; color: #fff; border: none; padding: 4px 8px; border-radius: 4px; cursor: pointer; font-size: 12px;">Удалить</button>
+                    </form>
+                </td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+    {% endif %}
+</div>
+
     <div style="background: #1a1a24; padding: 25px; border-radius: 12px; border: 1px solid #2a2a3a; overflow-x: auto;">
         <h3 style="margin-top: 0; margin-bottom: 20px;">👥 Список пользователей ({{ users|length }})</h3>
         
