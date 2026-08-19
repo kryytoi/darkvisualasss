@@ -76,6 +76,7 @@ LAUNCHER_URL = os.environ.get(
 
 FUNPAY_LINKS = {
     "hwid_reset": "https://funpay.com/lots/offer?id=74616473",
+    "custom_achievement": "https://funpay.com/lots/offer?id=74616473",
     "1_month": "https://funpay.com/lots/offer?id=74616107",
     "120_days": "https://funpay.com/lots/offer?id=74616212",
     "lifetime": "https://funpay.com/lots/offer?id=74616281",
@@ -122,6 +123,15 @@ PLANS = {
         "image": "img/plan_banner.png",
         "features": [
             "Сбрасывает ваш HWID",
+        ],
+    },
+    "custom_achievement": {
+        "name": "Своё достижение",
+        "price": "100 ₽",
+        "period": "Разовая услуга",
+        "image": "img/achievement.png",
+        "features": [
+            "Своё кастомное достижение в Dark Visuals",
         ],
     },
 }
