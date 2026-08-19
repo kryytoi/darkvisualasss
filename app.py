@@ -127,7 +127,7 @@ PLANS = {
     },
     "custom_achievement": {
         "name": "Своё достижение",
-        "price": "100 ₽",
+        "price": "50 ₽",
         "period": "Разовая услуга",
         "image": "img/achievement.png",
         "features": [
