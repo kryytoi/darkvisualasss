@@ -16,6 +16,16 @@
 </head>
 <body class="min-h-screen bg-[#050505] text-white">
 
+<!-- Живой космос на фоне -->
+<div class="dv-cosmos" aria-hidden="true">
+  <div class="dv-stars s1"></div>
+  <div class="dv-stars s2"></div>
+  <div class="dv-nebula"></div>
+  <div class="dv-shooting c1"></div>
+  <div class="dv-shooting c2"></div>
+  <div class="dv-shooting c3"></div>
+</div>
+
 <!-- Живой космос на фоне (для всех страниц) -->
 <div class="bg-cosmos" aria-hidden="true">
   <div class="cosmos-stars s1"></div>
@@ -85,18 +95,50 @@
   {% block content %}{% endblock %}
 </main>
 
-<footer class="px-6 py-12 border-t border-white/5">
-  <div class="max-w-7xl mx-auto flex flex-col md:flex-row items-center justify-between gap-4 text-sm text-neutral-500">
-    <div class="flex items-center gap-2">
-      <div class="w-7 h-7 rounded-lg overflow-hidden">
-        <img src="{{ url_for('static', filename='img/logo.png') }}" alt="" class="w-full h-full object-cover">
+<footer class="dv-footer">
+  <div class="dv-footer-bg"></div>
+  <div class="max-w-7xl mx-auto relative z-10">
+    <div class="dv-footer-grid">
+      <div class="dv-footer-brand-col">
+        <div class="flex items-center gap-3">
+          <div class="w-10 h-10 rounded-xl overflow-hidden shadow-[0_0_20px_rgba(168,85,247,0.5)]">
+            <img src="{{ url_for('static', filename='img/logo.png') }}" alt="" class="w-full h-full object-cover">
+          </div>
+          <span class="text-xl font-bold tracking-tight text-glow">DARK VISUALS</span>
+        </div>
+        <p class="dv-footer-desc">Клиент визуалов для Fabric 1.21.4. Меню — <kbd class="dv-kbd">Right Shift</kbd></p>
       </div>
-      <span class="font-bold text-white">DARK VISUALS</span>
+
+      <div class="dv-footer-links-col">
+        <h4 class="dv-footer-heading">Навигация</h4>
+        <a href="{{ url_for('index') }}#features" class="dv-footer-link">Возможности</a>
+        <a href="{{ url_for('index') }}#showcase" class="dv-footer-link">Интерфейс</a>
+        <a href="{{ url_for('index') }}#pricing" class="dv-footer-link">Прайс-лист</a>
+        <a href="{{ url_for('index') }}#trusted" class="dv-footer-link">Команда</a>
+      </div>
+
+      <div class="dv-footer-links-col">
+        <h4 class="dv-footer-heading">Поддержка</h4>
+        <a href="{{ url_for('profile') }}" class="dv-footer-link">Мой профиль</a>
+        <a href="{{ url_for('login') }}" class="dv-footer-link">Вход</a>
+        <a href="{{ url_for('register') }}" class="dv-footer-link">Регистрация</a>
+      </div>
+
+      <div class="dv-footer-social-col">
+        <h4 class="dv-footer-heading">Мы на связи</h4>
+        <div class="dv-social-row">
+          <a href="#" class="dv-social-btn" title="Telegram"><i data-lucide="send"></i></a>
+          <a href="#" class="dv-social-btn" title="Discord"><i data-lucide="message-circle"></i></a>
+          <a href="#" class="dv-social-btn" title="YouTube"><i data-lucide="youtube"></i></a>
+          <a href="#" class="dv-social-btn" title="VK"><i data-lucide="globe"></i></a>
+        </div>
+      </div>
     </div>
-    <span>&copy; 2026 Dark Visuals — сделан для Fabric 1.21.4</span>
-    <span class="flex items-center gap-2">
-      Меню в игре: <kbd class="px-2 py-1 rounded-md bg-white/5 border border-white/10 text-xs font-mono">Right Shift</kbd>
-    </span>
+
+    <div class="dv-footer-bottom">
+      <span>&copy; 2026 Dark Visuals</span>
+      <span class="flex items-center gap-2">Сделано для <span class="dv-version-badge">Fabric 1.21.4</span></span>
+    </div>
   </div>
 </footer>
 

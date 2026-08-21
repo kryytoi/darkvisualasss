@@ -757,3 +757,106 @@ body > footer { position: relative; z-index: 1; }
   .admin-panel { padding: 18px; }
   .admin-head { padding: 18px 20px; }
 }
+
+/* =========================================================
+   УЛУЧШЕНИЕ КРАСОТЫ: живой космос, статистика, футер
+   ========================================================= */
+
+/* --- Живой космос на фоне --- */
+.dv-cosmos { position: fixed; inset: 0; z-index: 0; pointer-events: none; overflow: hidden; }
+.dv-cosmos .dv-stars {
+  position: absolute; inset: 0;
+  background-image:
+    radial-gradient(1px 1px at 22% 15%, #fff, transparent),
+    radial-gradient(1.5px 1.5px at 60% 35%, rgba(255,255,255,.85), transparent),
+    radial-gradient(1px 1px at 82% 12%, #fff, transparent),
+    radial-gradient(2px 2px at 38% 68%, rgba(255,255,255,.7), transparent),
+    radial-gradient(1px 1px at 8% 78%, #fff, transparent),
+    radial-gradient(1.5px 1.5px at 92% 62%, rgba(255,255,255,.8), transparent),
+    radial-gradient(1px 1px at 70% 85%, #fff, transparent);
+  background-repeat: repeat;
+  background-size: 800px 800px, 650px 650px, 1000px 1000px, 750px 750px, 1100px 1100px, 900px 900px;
+  animation: dvTwinkle 7s ease-in-out infinite;
+}
+.dv-cosmos .s2 { background-size: 1400px 1400px, 1700px 1700px, 1250px 1250px; opacity: .7; animation-duration: 11s; animation-delay: 1s; }
+@keyframes dvTwinkle { 0%,100%{opacity:.3} 50%{opacity:.85} }
+.dv-nebula {
+  position: absolute; top:-25%; left:50%; transform:translateX(-50%);
+  width:130vw; height:90vh;
+  background:
+    radial-gradient(ellipse at 20% 25%, rgba(124,58,237,.28), transparent 55%),
+    radial-gradient(ellipse at 85% 60%, rgba(168,85,247,.2), transparent 50%),
+    radial-gradient(ellipse at 60% 85%, rgba(59,130,246,.12), transparent 55%);
+  animation: dvNebula 18s ease-in-out infinite;
+}
+@keyframes dvNebula { 0%,100%{opacity:.6;transform:translateX(-50%) scale(1)} 50%{opacity:1;transform:translateX(-50%) scale(1.08)} }
+.dv-shooting { position:absolute; width:2px; height:2px; background:#fff; border-radius:50%; opacity:0; }
+.dv-shooting::after { content:''; position:absolute; top:0; left:0; width:140px; height:1.5px; background:linear-gradient(90deg,#fff,transparent); transform:translateX(-100%); }
+.dv-cosmos .c1 { top:16%; left:80%; animation: dvShoot 7s linear infinite; animation-delay:1.2s; }
+.dv-cosmos .c2 { top:40%; left:12%; animation: dvShoot 9s linear infinite; animation-delay:5.5s; }
+.dv-cosmos .c3 { top:70%; left:70%; animation: dvShoot 11s linear infinite; animation-delay:8.5s; }
+@keyframes dvShoot { 0%{transform:translate(0,0) rotate(-35deg);opacity:0} 3%{opacity:1} 9%{transform:translate(-260px,180px) rotate(-35deg);opacity:0} 100%{transform:translate(-260px,180px) rotate(-35deg);opacity:0} }
+
+/* контент поверх фона */
+main { position:relative; z-index:1; }
+body > nav { position:relative; }
+body > footer { position:relative; z-index:1; }
+
+/* --- Статистика --- */
+.dv-stats { width:100%; max-width:1000px; margin:10px auto 0; padding:0 20px; }
+.dv-stats-inner {
+  display:grid; grid-template-columns:repeat(4,1fr); gap:18px;
+}
+.dv-stat {
+  background:var(--card-bg); backdrop-filter:blur(16px);
+  border:1px solid var(--card-border); border-radius:20px;
+  padding:24px 16px; text-align:center;
+  transition:transform .25s ease, border-color .25s ease, box-shadow .25s ease;
+}
+.dv-stat:hover { transform:translateY(-5px); border-color:var(--purple-light); box-shadow:0 0 30px rgba(168,85,247,.25); }
+.dv-stat-number {
+  font-size:34px; font-weight:900; color:#fff; line-height:1.1;
+  background:linear-gradient(135deg,#e9d5ff,var(--purple-light),var(--purple));
+  -webkit-background-clip:text; background-clip:text; -webkit-text-fill-color:transparent;
+}
+.dv-stat-suffix { font-size:22px; font-weight:900; background:linear-gradient(135deg,#e9d5ff,var(--purple-light)); -webkit-background-clip:text; background-clip:text; -webkit-text-fill-color:transparent; }
+.dv-stat-label { margin-top:8px; color:var(--text-dim); font-size:13px; font-weight:600; letter-spacing:.5px; text-transform:uppercase; }
+@media (max-width:640px){ .dv-stats-inner{grid-template-columns:repeat(2,1fr);} }
+
+/* --- Полировка hero: анимированный градиент заголовка --- */
+.hero h1 { position:relative; }
+.hero h1 .dv-grad {
+  background:linear-gradient(90deg,#e9d5ff,var(--purple-light),var(--purple),#e9d5ff);
+  background-size:300% auto;
+  -webkit-background-clip:text; background-clip:text; -webkit-text-fill-color:transparent;
+  animation:dvGradFlow 6s linear infinite;
+}
+@keyframes dvGradFlow { to{background-position:300% center;} }
+.hero h1::after {
+  content:''; position:absolute; left:50%; bottom:-14px; transform:translateX(-50%);
+  width:120px; height:3px; border-radius:3px;
+  background:linear-gradient(90deg,transparent,var(--purple-light),transparent);
+  filter:blur(.5px);
+}
+
+/* --- Футер --- */
+.dv-footer { position:relative; overflow:hidden; padding:60px 20px 24px; margin-top:60px; border-top:1px solid rgba(168,85,247,.15); }
+.dv-footer-bg { position:absolute; inset:0; pointer-events:none; background:radial-gradient(ellipse at 50% 120%, rgba(124,58,237,.2), transparent 60%); }
+.dv-footer-grid { display:grid; grid-template-columns:2fr 1fr 1fr 1fr; gap:36px; padding-bottom:32px; }
+.dv-footer-desc { color:var(--text-dim); margin-top:14px; font-size:14px; line-height:1.6; max-width:320px; }
+.dv-kbd { background:rgba(124,58,237,.15); border:1px solid var(--purple); color:#e9d5ff; padding:3px 8px; border-radius:6px; font-family:monospace; font-weight:bold; }
+.dv-footer-heading { color:#fff; font-size:14px; font-weight:800; text-transform:uppercase; letter-spacing:1.5px; margin-bottom:14px; }
+.dv-footer-link { display:block; color:var(--text-dim); text-decoration:none; font-size:14px; margin-bottom:9px; transition:color .2s, transform .2s; }
+.dv-footer-link:hover { color:var(--purple-light); transform:translateX(4px); }
+.dv-social-row { display:flex; gap:10px; flex-wrap:wrap; }
+.dv-social-btn {
+  width:42px; height:42px; border-radius:50%; display:flex; align-items:center; justify-content:center;
+  background:rgba(255,255,255,.04); border:1px solid var(--card-border); color:#fff;
+  transition:all .25s; text-decoration:none;
+}
+.dv-social-btn:hover { transform:translateY(-3px); color:#fff; border-color:var(--purple-light); background:var(--purple); box-shadow:0 8px 24px rgba(168,85,247,.4); }
+.dv-social-btn svg { width:18px; height:18px; }
+.dv-footer-bottom { border-top:1px solid rgba(255,255,255,.05); padding-top:20px; display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:10px; color:var(--text-dim); font-size:13px; }
+.dv-version-badge { background:rgba(168,85,247,.12); border:1px solid rgba(168,85,247,.3); color:var(--purple-light); padding:4px 12px; border-radius:20px; font-size:12px; font-weight:700; }
+@media (max-width:768px){ .dv-footer-grid{grid-template-columns:1fr 1fr; gap:28px;} }
+@media (max-width:480px){ .dv-footer-grid{grid-template-columns:1fr;} }

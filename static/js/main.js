@@ -81,3 +81,38 @@ document.addEventListener('DOMContentLoaded', function () {
     });
   });
 });
+
+// ===== Анимированные счётчики статистики =====
+document.addEventListener('DOMContentLoaded', function () {
+  var counters = document.querySelectorAll('.dv-stat-number[data-count]');
+  if (!counters.length) return;
+
+  var reduced = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+  function animate(el) {
+    var target = parseInt(el.getAttribute('data-count'), 10);
+    var dur = 1600;
+    var start = performance.now();
+    function step(now) {
+      var p = Math.min((now - start) / dur, 1);
+      var eased = 1 - Math.pow(1 - p, 3);
+      var val = Math.floor(eased * target);
+      el.textContent = target >= 1000 ? (val / 1000).toFixed(1) + 'K' : val;
+      if (p < 1) requestAnimationFrame(step);
+    }
+    requestAnimationFrame(step);
+  }
+
+  if ('IntersectionObserver' in window && !reduced) {
+    var io = new IntersectionObserver(function (entries) {
+      entries.forEach(function (entry) {
+        if (entry.isIntersecting) {
+          animate(entry.target);
+          io.unobserve(entry.target);
+        }
+      });
+    }, { threshold: 0.4 });
+    counters.forEach(function (c) { io.observe(c); });
+  } else {
+    counters.forEach(function (c) { c.textContent = c.getAttribute('data-count'); });
+  }
+});
