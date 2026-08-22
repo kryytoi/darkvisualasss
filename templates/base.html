@@ -3,8 +3,26 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>{% block title %}Dark Visuals — визуальные эффекты для Minecraft{% endblock %}</title>
-<meta name="description" content="Dark Visuals — клиент визуалов для Fabric 1.21.4. Открой меню на правый Shift.">
+<title>{% block title %}Dark Visuals — скачать клиент визуалов для Minecraft 1.21.4{% endblock %}</title>
+<meta name="description" content="Dark Visuals — лучший клиент визуалов для Minecraft 1.21.4 на Fabric. Косметика, эмоции, HUD, PvP-моды. Открой меню на правый Shift.">
+<meta name="keywords" content="dark visuals, майнкрафт клиент, minecraft 1.21.4, визуальные эффекты, fabric мод, PvP клиент, скачать dark visuals">
+<meta name="robots" content="index, follow">
+<meta name="author" content="Dark Visuals">
+<meta name="theme-color" content="#8A2BE2">
+
+<!-- Open Graph (соцсети: Telegram, Discord, VK) -->
+<meta property="og:type" content="website">
+<meta property="og:title" content="Dark Visuals — клиент визуалов для Minecraft 1.21.4">
+<meta property="og:description" content="Косметика, эмоции, HUD и PvP-моды. Открой меню на правый Shift.">
+<meta property="og:site_name" content="Dark Visuals">
+<meta property="og:image" content="{{ url_for('static', filename='img/logo.png') }}">
+
+<!-- Twitter -->
+<meta name="twitter:card" content="summary">
+<meta name="twitter:title" content="Dark Visuals — Minecraft 1.21.4">
+<meta name="twitter:description" content="Клиент визуалов для Minecraft 1.21.4 на Fabric.">
+<meta name="twitter:image" content="{{ url_for('static', filename='img/logo.png') }}">
+
 <link rel="icon" href="{{ url_for('static', filename='img/logo.png') }}" type="image/png">
 
 <link rel="preconnect" href="https://fonts.googleapis.com">
@@ -13,6 +31,20 @@
 <script src="https://cdn.tailwindcss.com"></script>
 <script src="https://unpkg.com/lucide@latest"></script>
 <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+
+<!-- Структурированные данные JSON-LD -->
+<script type="application/ld+json">
+{
+  "@context": "https://schema.org",
+  "@type": "SoftwareApplication",
+  "name": "Dark Visuals",
+  "operatingSystem": "Windows",
+  "applicationCategory": "GameApplication",
+  "description": "Клиент визуалов для Minecraft 1.21.4 на Fabric: косметика, эмоции, HUD и PvP-моды.",
+  "offers": { "@type": "Offer", "price": "0", "priceCurrency": "RUB" },
+  "softwareVersion": "1.21.4"
+}
+</script>
 </head>
 <body class="min-h-screen bg-[#050505] text-white">
 
