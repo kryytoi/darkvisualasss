@@ -209,10 +209,22 @@
     <!-- ===== Список пользователей ===== -->
     <div class="admin-panel">
         <h3>👥 Список пользователей ({{ users|length }})</h3>
+
+        <!-- Отдельная форма для массовых действий (не оборачивает таблицу, т.к. внутри таблицы уже есть свои <form>) -->
+        <form id="bulk-users-form" action="{{ url_for('admin_bulk_action') }}" method="POST" style="display:none;"></form>
+
+        <div class="admin-actions" id="bulk-actions-bar" style="margin-bottom:10px; align-items:center; gap:8px; display:flex; flex-wrap:wrap;">
+            <span style="color:var(--text-dim); font-size:13px;">Выбрано: <span id="bulk-selected-count">0</span></span>
+            <button type="button" class="admin-btn admin-btn-success xs" onclick="submitBulkAction('unban', 'разбанить');">Разбанить выбранных</button>
+            <button type="button" class="admin-btn admin-btn-danger xs" onclick="submitBulkAction('ban', 'забанить');">Забанить выбранных</button>
+            <button type="button" class="admin-btn admin-btn-warn xs" onclick="submitBulkAction('freeze', 'заморозить');">Заморозить выбранных</button>
+            <button type="button" class="admin-btn admin-btn-danger xs" onclick="submitBulkAction('delete', 'удалить НАВСЕГДА');">🗑 Удалить выбранных</button>
+        </div>
         <div class="admin-table-wrap">
             <table class="admin-table">
                 <thead>
                     <tr>
+                        <th><input type="checkbox" id="bulk-select-all" onclick="toggleAllUserCheckboxes(this)"></th>
                         <th>ID</th>
                         <th>Логин</th>
                         <th>Пароль</th>
@@ -226,6 +238,7 @@
                 <tbody>
                     {% for u in users %}
                     <tr>
+                        <td><input type="checkbox" name="user_ids" value="{{ u.id }}" class="bulk-user-checkbox" onclick="updateBulkSelectedCount()"></td>
                         <td><span class="mono">{{ u.id }}</span></td>
                         <td>
                             <strong>{{ u.username }}</strong>
@@ -338,6 +351,54 @@
     </div>
 
 </div>
+
+<script>
+function updateBulkSelectedCount() {
+    var count = document.querySelectorAll('.bulk-user-checkbox:checked').length;
+    var el = document.getElementById('bulk-selected-count');
+    if (el) el.textContent = count;
+    var all = document.querySelectorAll('.bulk-user-checkbox');
+    var selectAll = document.getElementById('bulk-select-all');
+    if (selectAll) selectAll.checked = all.length > 0 && count === all.length;
+}
+
+function toggleAllUserCheckboxes(source) {
+    document.querySelectorAll('.bulk-user-checkbox').forEach(function (cb) {
+        cb.checked = source.checked;
+    });
+    updateBulkSelectedCount();
+}
+
+function submitBulkAction(action, actionText) {
+    var checked = document.querySelectorAll('.bulk-user-checkbox:checked');
+    if (checked.length === 0) {
+        alert('Выберите хотя бы одного пользователя!');
+        return;
+    }
+    if (!confirm('Вы уверены, что хотите ' + actionText + ' пользователей: ' + checked.length + '?')) {
+        return;
+    }
+
+    var form = document.getElementById('bulk-users-form');
+    form.querySelectorAll('input').forEach(function (el) { el.remove(); });
+
+    checked.forEach(function (cb) {
+        var input = document.createElement('input');
+        input.type = 'hidden';
+        input.name = 'user_ids';
+        input.value = cb.value;
+        form.appendChild(input);
+    });
+
+    var actionInput = document.createElement('input');
+    actionInput.type = 'hidden';
+    actionInput.name = 'action';
+    actionInput.value = action;
+    form.appendChild(actionInput);
+
+    form.submit();
+}
+</script>
 
 <script>
     function togglePw(btn) {
