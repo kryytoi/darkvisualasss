@@ -1063,6 +1063,59 @@ def admin_create_achievement():
     return redirect(url_for("admin_panel"))
 
 
+@app.route("/admin/bulk_action", methods=["POST"])
+def admin_bulk_action():
+    user = current_user()
+    if not user or not user.get("is_admin"):
+        return "Доступ запрещен", 403
+
+    action = request.form.get("action")
+    raw_ids = request.form.getlist("user_ids")
+
+    ids = []
+    for raw_id in raw_ids:
+        try:
+            ids.append(int(raw_id))
+        except (TypeError, ValueError):
+            continue
+
+    if not ids:
+        flash("Ошибка: Не выбран ни один пользователь!", "error")
+        return redirect(url_for("admin_panel"))
+
+    db = get_db()
+
+    if action == "unban":
+        for target_id in ids:
+            execute(db, "UPDATE users SET status = 'active' WHERE id = %s", (target_id,))
+        flash(f"Разблокировано пользователей: {len(ids)}!", "success")
+
+    elif action == "ban":
+        for target_id in ids:
+            if target_id == user.get("id"):
+                continue
+            execute(db, "UPDATE users SET status = 'banned' WHERE id = %s", (target_id,))
+        flash(f"Заблокировано пользователей: {len(ids)}!", "success")
+
+    elif action == "freeze":
+        for target_id in ids:
+            execute(db, "UPDATE users SET status = 'frozen' WHERE id = %s", (target_id,))
+        flash(f"Заморожено пользователей: {len(ids)}!", "warning")
+
+    elif action == "delete":
+        for target_id in ids:
+            if target_id == user.get("id"):
+                continue
+            execute(db, "DELETE FROM users WHERE id = %s", (target_id,))
+        flash(f"Удалено пользователей: {len(ids)}!", "success")
+
+    else:
+        flash("Ошибка: Неизвестное массовое действие!", "error")
+
+    db.close()
+    return redirect(url_for("admin_panel"))
+
+
 @app.route("/admin/action", methods=["POST"])
 def admin_action():
     user = current_user()
