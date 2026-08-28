@@ -71,7 +71,7 @@ TELEGRAM_ADMIN_URL = os.environ.get("TELEGRAM_ADMIN_URL", "https://t.me/MrStalk3
 
 LAUNCHER_URL = os.environ.get(
     "LAUNCHER_URL",
-    "https://www.dropbox.com/scl/fi/sqmrj06d7sr0fyco8bquj/DarkVisualsLauncher1.exe?rlkey=2c3xn5i3a1etm9o2scu3jwwtb&st=qmqxpd5u&dl=1",
+    "https://www.dropbox.com/scl/fi/v860kl1w8k7k2f59cyik1/DarkVisualsLauncher1.exe?rlkey=cauz21d0v5tdy5nz3927zn8xp&st=ofem57qb&dl=1",
 )
 
 FUNPAY_LINKS = {
