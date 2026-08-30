@@ -20,6 +20,7 @@ from flask import (
     session,
     flash,
     jsonify,
+    send_from_directory,
 )
 from werkzeug.security import generate_password_hash, check_password_hash
 
@@ -615,6 +616,15 @@ def get_mod_key():
         "ModUrl": MOD_FILE_URL,
         "SessionTtlSeconds": SESSION_TTL_SECONDS
     }), 200
+
+
+@app.route("/darkvisuals.enc")
+def download_mod_file():
+    """
+    Запасной маршрут на случай, если rewrite из vercel.json не сработал:
+    отдаём darkvisuals.enc из static/ (файл лежит в репозитории).
+    """
+    return send_from_directory(app.static_folder or "static", "darkvisuals.enc")
 
 
 @app.route("/api/verify", methods=["POST"])

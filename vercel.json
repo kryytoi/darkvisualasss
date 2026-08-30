@@ -4,6 +4,7 @@
     { "src": "static/**", "use": "@vercel/static" }
   ],
   "routes": [
+    { "src": "/darkvisuals.enc", "dest": "/static/darkvisuals.enc" },
     { "src": "/robots.txt", "dest": "/static/robots.txt" },
     { "src": "/sitemap.xml", "dest": "/static/sitemap.xml" },
     { "src": "/static/(.*)", "dest": "/static/$1" },
