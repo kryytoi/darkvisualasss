@@ -72,7 +72,7 @@ TELEGRAM_ADMIN_URL = os.environ.get("TELEGRAM_ADMIN_URL", "https://t.me/MrStalk3
 
 LAUNCHER_URL = os.environ.get(
     "LAUNCHER_URL",
-    "https://drive.google.com/uc?export=download&id=1q8B80YUVH4IIlENfApl_cqVHhvYXH9XS",
+    "https://drive.google.com/file/d/1q8B80YUVH4IIlENfApl_cqVHhvYXH9XS/view?usp=sharing",
 )
 
 FUNPAY_LINKS = {
