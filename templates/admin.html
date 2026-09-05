@@ -181,7 +181,7 @@
                     <tr>
                         <td>
                             {% if a.image_url %}
-                                <img src="{{ a.image_url }}" alt="" style="width:32px; height:32px; object-fit:contain; border-radius:8px;">
+                                <img src="{{ a.image_url }}" alt="" width="32" height="32" loading="lazy" decoding="async" style="width:32px; height:32px; object-fit:contain; border-radius:8px;">
                             {% else %}
                                 🏆
                             {% endif %}
