@@ -45,6 +45,15 @@ app.config["SESSION_COOKIE_SECURE"] = True  # на Vercel всегда HTTPS
 
 @app.after_request
 def add_no_cache_headers(resp):
+    # Статика (картинки, css, js) — кэшируем надолго, чтобы браузер не слал
+    # повторные запросы с ответами 304 (они как раз давали огромные задержки).
+    path = request.path or ""
+    if path.startswith("/static/") or path.startswith("/api/img/"):
+        resp.headers["Cache-Control"] = "public, max-age=31536000, immutable"
+        resp.headers.pop("Expires", None)
+        resp.headers.pop("Pragma", None)
+        return resp
+
     # Не кэшируем HTML-страницы (особенно приватные, вроде /profile)
     ctype = resp.headers.get("Content-Type", "")
     if "text/html" in ctype:
@@ -148,7 +157,10 @@ MOD_FILE_URL = os.environ.get(
 GITHUB_TOKEN = os.environ.get("GITHUB_TOKEN", "")
 GITHUB_REPO = os.environ.get("GITHUB_REPO", "kryytoi/darkvisualasss")
 GITHUB_BRANCH = os.environ.get("GITHUB_BRANCH", "main")
-GITHUB_ACHIEVEMENTS_PATH = os.environ.get("GITHUB_ACHIEVEMENTS_PATH", "static/adviencement")
+GITHUB_ACHIEVEMENTS_PATH = os.environ.get("GITHUB_ACHIEVEMENTS_PATH", "api/img")
+# Публичный префикс, по которому отдаются иконки достижений с нашего домена
+# (а не с raw.githubusercontent.com — это убирает лишний медленный внешний запрос).
+ACHIEVEMENTS_PUBLIC_PREFIX = "/api/img/"
 
 ALLOWED_ICON_EXTENSIONS = {"png", "jpg", "jpeg", "gif", "webp"}
 
@@ -204,8 +216,27 @@ def upload_achievement_icon_to_github(file_storage):
     if resp.status_code not in (200, 201):
         return None, f"GitHub вернул ошибку ({resp.status_code}): {resp.text[:200]}"
 
-    raw_url = f"https://raw.githubusercontent.com/{GITHUB_REPO}/{GITHUB_BRANCH}/{repo_path}"
-    return raw_url, None
+    # Отдаём относительную ссылку на наш же домен: файл лежит в репозитории и
+    # раздаётся статикой с бесконечным кэшем (имя файла уникально).
+    return f"{ACHIEVEMENTS_PUBLIC_PREFIX}{unique_name}", None
+
+
+def normalize_achievement_image_url(image_url):
+    """
+    Старые записи хранят ссылки на raw.githubusercontent.com (внешний медленный запрос).
+    Переводим их на наш /api/img/<file>, чтобы всё грузилось с одного домена и из кэша.
+    """
+    if not image_url:
+        return ""
+    for prefix in (
+        f"https://raw.githubusercontent.com/{GITHUB_REPO}/{GITHUB_BRANCH}/static/adviencement/",
+        f"https://raw.githubusercontent.com/{GITHUB_REPO}/{GITHUB_BRANCH}/{GITHUB_ACHIEVEMENTS_PATH}/",
+    ):
+        if image_url.startswith(prefix):
+            return f"{ACHIEVEMENTS_PUBLIC_PREFIX}{image_url[len(prefix):]}"
+    if image_url.startswith("/static/adviencement/"):
+        return ACHIEVEMENTS_PUBLIC_PREFIX + image_url[len("/static/adviencement/"):]
+    return image_url
 
 
 def delete_achievement_icon_from_github(image_url):
@@ -217,11 +248,17 @@ def delete_achievement_icon_from_github(image_url):
     if not image_url or not GITHUB_TOKEN:
         return
 
-    prefix = f"https://raw.githubusercontent.com/{GITHUB_REPO}/{GITHUB_BRANCH}/{GITHUB_ACHIEVEMENTS_PATH}/"
-    if not image_url.startswith(prefix):
+    filename = None
+    raw_prefix = f"https://raw.githubusercontent.com/{GITHUB_REPO}/{GITHUB_BRANCH}/{GITHUB_ACHIEVEMENTS_PATH}/"
+    if image_url.startswith(ACHIEVEMENTS_PUBLIC_PREFIX):
+        filename = image_url[len(ACHIEVEMENTS_PUBLIC_PREFIX):]
+    elif image_url.startswith(raw_prefix):
+        filename = image_url[len(raw_prefix):]
+
+    if not filename or "/" in filename:
         return
 
-    repo_path = f"{GITHUB_ACHIEVEMENTS_PATH}/{image_url[len(prefix):]}"
+    repo_path = f"{GITHUB_ACHIEVEMENTS_PATH}/{filename}"
     api_url = f"https://api.github.com/repos/{GITHUB_REPO}/contents/{repo_path}"
     headers = {
         "Authorization": f"Bearer {GITHUB_TOKEN}",
@@ -618,6 +655,19 @@ def get_mod_key():
     }), 200
 
 
+@app.route("/api/img/<path:filename>")
+def achievement_image(filename):
+    """
+    Отдаём иконки достижений с нашего домена с «вечным» кэшем:
+    имена файлов уникальны (uuid), поэтому immutable безопасен.
+    Это убирает медленные 304-запросы и внешние обращения к raw.githubusercontent.com.
+    """
+    directory = os.path.join(os.path.dirname(os.path.abspath(__file__)), "api", "img")
+    resp = send_from_directory(directory, filename, max_age=31536000)
+    resp.headers["Cache-Control"] = "public, max-age=31536000, immutable"
+    return resp
+
+
 @app.route("/darkvisuals.enc")
 def download_mod_file():
     """
@@ -959,6 +1009,8 @@ def admin_panel():
     all_users = fetchall(db, "SELECT * FROM users ORDER BY id DESC")
     all_keys = fetchall(db, "SELECT * FROM subscription_keys ORDER BY id DESC")
     all_achievements = fetchall(db, "SELECT * FROM achievements ORDER BY id DESC")
+    for a in all_achievements:
+        a["image_url"] = normalize_achievement_image_url(a.get("image_url"))
     all_grants = fetchall(
         db,
         """
@@ -1314,7 +1366,7 @@ def api_get_user_achievements():
             "code": r["code"],
             "name": r["name"],
             "description": r.get("description") or "",
-            "imageUrl": r.get("image_url") or "",
+            "imageUrl": normalize_achievement_image_url(r.get("image_url")),
             "unlockFeature": r.get("unlock_feature") or "",
             "grantedAt": r.get("granted_at") or "",
         }
