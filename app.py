@@ -1,4 +1,5 @@
 import os
+import gzip
 import secrets
 import string
 import sqlite3
@@ -21,6 +22,8 @@ from flask import (
     flash,
     jsonify,
     send_from_directory,
+    g,
+    has_app_context,
 )
 from werkzeug.security import generate_password_hash, check_password_hash
 
@@ -44,11 +47,42 @@ app.config["SESSION_COOKIE_SAMESITE"] = "Lax"
 app.config["SESSION_COOKIE_SECURE"] = True  # на Vercel всегда HTTPS
 
 @app.after_request
+def compress_response(resp):
+    """
+    Гзипуем HTML/CSS/JS/JSON. Страница /admin весила ~68 КБ несжатыми —
+    после сжатия это ~6-8 КБ, что заметно сокращает время загрузки.
+    """
+    try:
+        if resp.direct_passthrough or resp.status_code < 200 or resp.status_code >= 300:
+            return resp
+        if "gzip" not in (request.headers.get("Accept-Encoding") or "").lower():
+            return resp
+        if resp.headers.get("Content-Encoding"):
+            return resp
+
+        ctype = (resp.headers.get("Content-Type") or "").lower()
+        if not any(t in ctype for t in ("text/html", "text/css", "javascript", "application/json", "text/plain", "image/svg")):
+            return resp
+
+        data = resp.get_data()
+        if len(data) < 1024:
+            return resp
+
+        resp.set_data(gzip.compress(data, 6))
+        resp.headers["Content-Encoding"] = "gzip"
+        resp.headers["Content-Length"] = str(len(resp.get_data()))
+        resp.headers.add("Vary", "Accept-Encoding")
+    except Exception:
+        pass
+    return resp
+
+
+@app.after_request
 def add_no_cache_headers(resp):
     # Статика (картинки, css, js) — кэшируем надолго, чтобы браузер не слал
     # повторные запросы с ответами 304 (они как раз давали огромные задержки).
     path = request.path or ""
-    if path.startswith("/static/") or path.startswith("/api/img/"):
+    if resp.status_code < 400 and (path.startswith("/static/") or path.startswith("/api/img/")):
         resp.headers["Cache-Control"] = "public, max-age=31536000, immutable"
         resp.headers.pop("Expires", None)
         resp.headers.pop("Pragma", None)
@@ -223,19 +257,31 @@ def upload_achievement_icon_to_github(file_storage):
 
 def normalize_achievement_image_url(image_url):
     """
-    Старые записи хранят ссылки на raw.githubusercontent.com (внешний медленный запрос).
-    Переводим их на наш /api/img/<file>, чтобы всё грузилось с одного домена и из кэша.
+    Старые записи хранят ссылки на raw.githubusercontent.com (внешний медленный
+    запрос, который к тому же блокируется браузером как ERR_BLOCKED_BY_ORB).
+    Переводим любые ссылки на наш репозиторий в локальные пути того же домена.
     """
     if not image_url:
         return ""
-    for prefix in (
-        f"https://raw.githubusercontent.com/{GITHUB_REPO}/{GITHUB_BRANCH}/static/adviencement/",
-        f"https://raw.githubusercontent.com/{GITHUB_REPO}/{GITHUB_BRANCH}/{GITHUB_ACHIEVEMENTS_PATH}/",
-    ):
-        if image_url.startswith(prefix):
-            return f"{ACHIEVEMENTS_PUBLIC_PREFIX}{image_url[len(prefix):]}"
+
+    raw_root = f"https://raw.githubusercontent.com/{GITHUB_REPO}/"
+    if image_url.startswith(raw_root):
+        rest = image_url[len(raw_root):]
+        if rest.startswith("refs/heads/"):
+            rest = rest[len("refs/heads/"):]
+        # отрезаем имя ветки
+        rest = rest.split("/", 1)[1] if "/" in rest else rest
+        if rest.startswith("static/adviencement/"):
+            return ACHIEVEMENTS_PUBLIC_PREFIX + rest[len("static/adviencement/"):]
+        if rest.startswith("api/img/"):
+            return ACHIEVEMENTS_PUBLIC_PREFIX + rest[len("api/img/"):]
+        if rest.startswith("static/"):
+            return "/" + rest
+        return ACHIEVEMENTS_PUBLIC_PREFIX + rest.rsplit("/", 1)[-1]
+
     if image_url.startswith("/static/adviencement/"):
         return ACHIEVEMENTS_PUBLIC_PREFIX + image_url[len("/static/adviencement/"):]
+
     return image_url
 
 
@@ -282,7 +328,7 @@ def delete_achievement_icon_from_github(image_url):
         pass
 
 
-def get_db():
+def _connect_db():
     db_url = os.environ.get("DATABASE_URL")
     if db_url:
         if db_url.startswith("postgres://"):
@@ -299,6 +345,49 @@ def get_db():
     conn = sqlite3.connect("database.sqlite3")
     conn.row_factory = sqlite3.Row
     return conn
+
+
+class _SharedConnection:
+    """
+    Обёртка над соединением: .close() ничего не делает, реальное закрытие
+    происходит один раз в конце запроса. Раньше каждая страница открывала
+    по 3-5 новых подключений к Postgres (у /admin — 4), и каждый TLS-хендшейк
+    добавлял сотни миллисекунд.
+    """
+
+    def __init__(self, conn):
+        self._conn = conn
+
+    def __getattr__(self, name):
+        return getattr(self._conn, name)
+
+    def close(self):
+        return None
+
+    def _real_close(self):
+        try:
+            self._conn.close()
+        except Exception:
+            pass
+
+
+def get_db():
+    # Вне контекста запроса (например, init_db при старте) — обычное соединение.
+    if not has_app_context():
+        return _connect_db()
+
+    shared = getattr(g, "_shared_db", None)
+    if shared is None:
+        shared = _SharedConnection(_connect_db())
+        g._shared_db = shared
+    return shared
+
+
+@app.teardown_appcontext
+def _close_shared_db(exc=None):
+    shared = getattr(g, "_shared_db", None)
+    if shared is not None:
+        shared._real_close()
 
 
 def execute(db, query, params=()):
@@ -492,10 +581,22 @@ def init_db():
     db.close()
 
 
-try:
-    init_db()
-except Exception as e:
-    print(f"[DB Init Warning]: {e}")
+# init_db() делает CREATE TABLE IF NOT EXISTS + десятки ALTER TABLE.
+# На Vercel это выполняется при каждом холодном старте и добавляет секунды к
+# первому запросу. Схема уже создана, поэтому по умолчанию на Vercel миграции
+# пропускаются; чтобы прогнать их (после изменения схемы) — выставь RUN_DB_INIT=1.
+def _should_init_db():
+    flag = os.environ.get("RUN_DB_INIT")
+    if flag is not None:
+        return flag == "1"
+    return os.environ.get("VERCEL") != "1"
+
+
+if _should_init_db():
+    try:
+        init_db()
+    except Exception as e:
+        print(f"[DB Init Warning]: {e}")
 
 
 def current_user():
@@ -662,7 +763,13 @@ def achievement_image(filename):
     имена файлов уникальны (uuid), поэтому immutable безопасен.
     Это убирает медленные 304-запросы и внешние обращения к raw.githubusercontent.com.
     """
-    directory = os.path.join(os.path.dirname(os.path.abspath(__file__)), "api", "img")
+    base = os.path.dirname(os.path.abspath(__file__))
+    directory = os.path.join(base, "api", "img")
+    # Фолбэк: старые ачивки могли ссылаться на картинки из static/img
+    if not os.path.isfile(os.path.join(directory, filename)):
+        fallback = os.path.join(base, "static", "img")
+        if os.path.isfile(os.path.join(fallback, filename)):
+            directory = fallback
     resp = send_from_directory(directory, filename, max_age=31536000)
     resp.headers["Cache-Control"] = "public, max-age=31536000, immutable"
     return resp
