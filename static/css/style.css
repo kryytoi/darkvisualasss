@@ -750,6 +750,52 @@ body > footer { position: relative; z-index: 1; }
 .pw-toggle:hover { color: #fff; border-color: var(--purple-light); }
 .admin-note { color: #5b6478; font-size: 12px; margin-top: 12px; }
 .admin-empty { color: #5b6478; margin: 10px 0 0 0; font-size: 14px; }
+.admin-search { margin-bottom: 14px; }
+.admin-search .admin-btn { text-decoration: none; }
+
+/* ===== Пагинация админки (по 50 строк на страницу) ===== */
+.admin-pager {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 14px;
+}
+.admin-pager-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 6px 12px;
+  border-radius: 9px;
+  font-size: 11px;
+  font-weight: 800;
+  letter-spacing: .3px;
+  text-transform: uppercase;
+  text-decoration: none;
+  white-space: nowrap;
+  color: #fff;
+  background: rgba(255, 255, 255, .08);
+  border: 1px solid rgba(255, 255, 255, .12);
+  cursor: pointer;
+  transition: color .2s ease, background .2s ease, border-color .2s ease, transform .2s ease;
+}
+.admin-pager-btn:hover {
+  color: #e9d5ff;
+  background: rgba(124, 58, 237, .18);
+  border-color: var(--purple-light);
+  transform: translateY(-1px);
+}
+.admin-pager-btn.is-disabled {
+  opacity: .35;
+  cursor: default;
+  pointer-events: none;
+}
+.admin-pager-info {
+  margin: 0 4px;
+  color: var(--text-dim);
+  font-size: 12px;
+  white-space: nowrap;
+}
 .admin-pw-group { display: flex; align-items: center; gap: 6px; }
 .admin-inline-form { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; margin-top: 6px; }
 

@@ -1,4 +1,5 @@
 import os
+import re
 import gzip
 import secrets
 import string
@@ -40,6 +41,10 @@ app.secret_key = os.environ.get("SECRET_KEY", "dark_visuals_super_secret_key_202
 session_serializer = URLSafeTimedSerializer(app.secret_key, salt="darkvisuals-mod-session")
 
 SESSION_TTL_SECONDS = int(os.environ.get("SESSION_TTL_SECONDS", "3600"))
+
+# Сколько строк показывать на одной странице /admin. Раньше в HTML рендерились
+# вообще все пользователи (883 штуки) — это 100+ КБ разметки и ~20 с на загрузку.
+ADMIN_PAGE_SIZE = int(os.environ.get("ADMIN_PAGE_SIZE", "50"))
 
 app.config["PERMANENT_SESSION_LIFETIME"] = timedelta(days=30)
 app.config["SESSION_COOKIE_HTTPONLY"] = True
@@ -566,6 +571,21 @@ def init_db():
             );
             """,
         )
+
+    # Индексы под ORDER BY / JOIN / поиск на /admin. Без них Postgres (и SQLite)
+    # сканировал все 883 строки users и все выдачи достижений на каждый запрос.
+    for ddl in (
+        "CREATE INDEX IF NOT EXISTS idx_users_id_desc ON users (id DESC)",
+        "CREATE INDEX IF NOT EXISTS idx_users_username ON users (username)",
+        "CREATE INDEX IF NOT EXISTS idx_subscription_keys_id_desc ON subscription_keys (id DESC)",
+        "CREATE INDEX IF NOT EXISTS idx_user_achievements_user_id ON user_achievements (user_id)",
+        "CREATE INDEX IF NOT EXISTS idx_user_achievements_achievement_id ON user_achievements (achievement_id)",
+        "CREATE INDEX IF NOT EXISTS idx_user_achievements_granted_at_desc ON user_achievements (granted_at DESC)",
+    ):
+        try:
+            execute(db, ddl)
+        except Exception as e:  # индекс — не критично, страница должна открыться в любом случае
+            print(f"[DB Index Warning] {ddl}: {e}")
 
     admin = fetchone(db, "SELECT id FROM users WHERE username = %s", ("admin",))
     if not admin:
@@ -1106,6 +1126,40 @@ def redeem_key():
     return redirect(url_for("profile"))
 
 
+def _admin_page_arg(name):
+    """Номер страницы из query string (?upage= / ?kpage= / ?gpage=), всегда >= 1."""
+    try:
+        page = int(request.args.get(name, 1))
+    except (TypeError, ValueError):
+        page = 1
+    return page if page > 0 else 1
+
+
+def _paginate(total, page, page_size=ADMIN_PAGE_SIZE):
+    """Возвращает (page, pages, offset): номер с учётом границ, всего страниц, OFFSET."""
+    pages = max(1, (total + page_size - 1) // page_size)
+    page = min(page, pages)
+    return page, pages, (page - 1) * page_size
+
+
+def _admin_page_url(param, page):
+    """Ссылка на /admin с сохранением остальных параметров (q и другие страницы)."""
+    args = request.args.copy()
+    if page and page > 1:
+        args[param] = page
+    else:
+        args.pop(param, None)
+    return url_for("admin_panel", **args)
+
+
+# Выданные достижения: базовая часть запроса одна и та же для выборки и для COUNT(*).
+ADMIN_GRANTS_FROM = """
+    FROM user_achievements ua
+    JOIN users u ON u.id = ua.user_id
+    JOIN achievements a ON a.id = ua.achievement_id
+"""
+
+
 @app.route("/admin")
 def admin_panel():
     user = current_user()
@@ -1113,23 +1167,52 @@ def admin_panel():
         return "Доступ запрещен", 403
 
     db = get_db()
-    all_users = fetchall(db, "SELECT * FROM users ORDER BY id DESC")
-    all_keys = fetchall(db, "SELECT * FROM subscription_keys ORDER BY id DESC")
+
+    # Поиск по пользователям: ?q= — часть логина (без учёта регистра) или точный ID.
+    q = (request.args.get("q") or "").strip()
+    user_where, user_params = "", ()
+    if q:
+        user_where = " WHERE LOWER(username) LIKE %s OR CAST(id AS TEXT) = %s"
+        user_params = ("%" + q.lower() + "%", q)
+
+    # --- пользователи ---
+    utotal = fetchone(db, "SELECT COUNT(*) AS total FROM users" + user_where, user_params)["total"]
+    upage, upages, uoffset = _paginate(utotal, _admin_page_arg("upage"))
+    all_users = fetchall(
+        db,
+        "SELECT * FROM users" + user_where + " ORDER BY id DESC LIMIT %s OFFSET %s",
+        user_params + (ADMIN_PAGE_SIZE, uoffset),
+    )
+
+    # --- ключи подписки ---
+    ktotal = fetchone(db, "SELECT COUNT(*) AS total FROM subscription_keys")["total"]
+    kpage, kpages, koffset = _paginate(ktotal, _admin_page_arg("kpage"))
+    all_keys = fetchall(
+        db,
+        "SELECT * FROM subscription_keys ORDER BY id DESC LIMIT %s OFFSET %s",
+        (ADMIN_PAGE_SIZE, koffset),
+    )
+
+    # --- достижения (их немного, список нужен целиком и в форме выдачи) ---
     all_achievements = fetchall(db, "SELECT * FROM achievements ORDER BY id DESC")
     for a in all_achievements:
         a["image_url"] = normalize_achievement_image_url(a.get("image_url"))
+
+    # --- выданные достижения ---
+    gtotal = fetchone(db, "SELECT COUNT(*) AS total" + ADMIN_GRANTS_FROM)["total"]
+    gpage, gpages, goffset = _paginate(gtotal, _admin_page_arg("gpage"))
     all_grants = fetchall(
         db,
         """
         SELECT ua.id AS user_achievement_id, ua.granted_at,
                u.username, u.id AS user_id,
                a.name AS achievement_name, a.code AS achievement_code, a.id AS achievement_id
-        FROM user_achievements ua
-        JOIN users u ON u.id = ua.user_id
-        JOIN achievements a ON a.id = ua.achievement_id
-        ORDER BY ua.granted_at DESC
-        """,
+        """
+        + ADMIN_GRANTS_FROM
+        + " ORDER BY ua.granted_at DESC LIMIT %s OFFSET %s",
+        (ADMIN_PAGE_SIZE, goffset),
     )
+
     db.close()
     return render_template(
         "admin.html",
@@ -1138,7 +1221,41 @@ def admin_panel():
         current_user=user,
         achievements=all_achievements,
         grants=all_grants,
+        page_url=_admin_page_url,
+        page_size=ADMIN_PAGE_SIZE,
+        q=q,
+        utotal=utotal,
+        upage=upage,
+        upages=upages,
+        ktotal=ktotal,
+        kpage=kpage,
+        kpages=kpages,
+        gtotal=gtotal,
+        gpage=gpage,
+        gpages=gpages,
     )
+
+
+@app.route("/admin/api/users")
+def admin_user_suggest():
+    """Лёгкий JSON-поиск игроков для <datalist> в форме выдачи достижения."""
+    user = current_user()
+    if not user or not user.get("is_admin"):
+        return jsonify({"error": "forbidden"}), 403
+
+    q = (request.args.get("q") or "").strip()
+    if len(q) < 2:
+        return jsonify([])
+
+    db = get_db()
+    rows = fetchall(
+        db,
+        "SELECT id, username FROM users WHERE LOWER(username) LIKE %s OR CAST(id AS TEXT) = %s"
+        " ORDER BY id DESC LIMIT 20",
+        ("%" + q.lower() + "%", q),
+    )
+    db.close()
+    return jsonify([{"id": r["id"], "username": r["username"]} for r in rows or []])
 
 
 @app.route("/admin/create_user", methods=["POST"])
@@ -1507,28 +1624,87 @@ def admin_delete_achievement():
     return redirect(url_for("admin_panel"))
 
 
+# Строка вида "логин (ID: 12)" — именно так <datalist> подставляет выбранного игрока.
+_ID_IN_PARENS = re.compile(r"\(\s*(?:id)?\s*[:#]?\s*(\d+)\s*\)\s*$", re.IGNORECASE)
+
+
+def _find_user_by_query(db, query):
+    """
+    Ищет игрока по строке из формы: точный ID, логин (без учёта регистра)
+    или «логин (ID: 12)». Возвращает (row, candidates), где candidates —
+    список похожих игроков, если строка подошла под несколько логинов.
+    """
+    query = (query or "").strip()
+    if not query:
+        return None, []
+
+    def by_id(value):
+        return fetchone(db, "SELECT id, username FROM users WHERE id = %s", (value,))
+
+    match = _ID_IN_PARENS.search(query)
+    if match:
+        row = by_id(int(match.group(1)))
+        if row:
+            return row, []
+
+    digits = query.lstrip("#")
+    if digits.isdigit():
+        row = by_id(int(digits))
+        if row:
+            return row, []
+
+    lowered = query.lower()
+    row = fetchone(db, "SELECT id, username FROM users WHERE LOWER(username) = %s", (lowered,))
+    if row:
+        return row, []
+
+    candidates = (
+        fetchall(
+            db,
+            "SELECT id, username FROM users WHERE LOWER(username) LIKE %s ORDER BY id DESC LIMIT 5",
+            ("%" + lowered + "%",),
+        )
+        or []
+    )
+    if len(candidates) == 1:
+        return candidates[0], []
+    return None, candidates
+
+
 @app.route("/admin/achievements/grant", methods=["POST"])
 def admin_grant_achievement():
     user = current_user()
     if not user or not user.get("is_admin"):
         return "Доступ запрещен", 403
 
-    target_id = request.form.get("user_id")
+    # Раньше здесь был <select> со всеми 883 игроками — он один весил десятки КБ.
+    # Теперь приходит строка: логин, ID или «логин (ID: 12)».
+    user_query = (request.form.get("user_query") or "").strip()
     achievement_id = request.form.get("achievement_id")
 
-    if not target_id or not achievement_id:
-        flash("Выберите пользователя и достижение!", "error")
+    if not user_query or not achievement_id:
+        flash("Укажите игрока (логин или ID) и достижение!", "error")
         return redirect(url_for("admin_panel"))
 
     db = get_db()
-    target_user = fetchone(db, "SELECT username FROM users WHERE id = %s", (target_id,))
+    target_user, candidates = _find_user_by_query(db, user_query)
     achievement = fetchone(db, "SELECT name FROM achievements WHERE id = %s", (achievement_id,))
 
-    if not target_user or not achievement:
+    if not achievement:
         db.close()
-        flash("Пользователь или достижение не найдены!", "error")
+        flash("Достижение не найдено!", "error")
         return redirect(url_for("admin_panel"))
 
+    if not target_user:
+        db.close()
+        if candidates:
+            variants = ", ".join(f"{c['username']} (ID: {c['id']})" for c in candidates[:5])
+            flash(f"Игрок «{user_query}» не найден. Возможно, вы имели в виду: {variants}", "error")
+        else:
+            flash(f"Игрок «{user_query}» не найден!", "error")
+        return redirect(url_for("admin_panel"))
+
+    target_id = target_user["id"]
     existing = fetchone(
         db,
         "SELECT id FROM user_achievements WHERE user_id = %s AND achievement_id = %s",
