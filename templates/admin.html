@@ -1,5 +1,31 @@
 {% extends "base.html" %}
 
+{% macro pager(param, page, pages, total) %}
+  {% if pages > 1 %}
+  <nav class="admin-pager" aria-label="Пагинация">
+    {% if page > 1 %}
+      <a class="admin-pager-btn" href="{{ page_url(param, 1) }}">« В начало</a>
+      <a class="admin-pager-btn" href="{{ page_url(param, page - 1) }}">‹ Назад</a>
+    {% else %}
+      <span class="admin-pager-btn is-disabled" aria-disabled="true">« В начало</span>
+      <span class="admin-pager-btn is-disabled" aria-disabled="true">‹ Назад</span>
+    {% endif %}
+
+    <span class="admin-pager-info">
+      Стр. {{ page }} / {{ pages }} · показано {{ (page - 1) * page_size + 1 }}–{{ [page * page_size, total] | min }} из {{ total }}
+    </span>
+
+    {% if page < pages %}
+      <a class="admin-pager-btn" href="{{ page_url(param, page + 1) }}">Вперёд ›</a>
+      <a class="admin-pager-btn" href="{{ page_url(param, pages) }}">В конец »</a>
+    {% else %}
+      <span class="admin-pager-btn is-disabled" aria-disabled="true">Вперёд ›</span>
+      <span class="admin-pager-btn is-disabled" aria-disabled="true">В конец »</span>
+    {% endif %}
+  </nav>
+  {% endif %}
+{% endmacro %}
+
 {% block title %}Админ-панель — Dark Visuals{% endblock %}
 
 {% block content %}
@@ -41,8 +67,8 @@
             <button type="submit" class="admin-btn admin-btn-primary">Создать ключ</button>
         </form>
 
-        {% if keys %}
-        <h4>Созданные ключи</h4>
+        {% if ktotal %}
+        <h4>Созданные ключи ({{ ktotal }})</h4>
         <div class="admin-table-wrap">
             <table class="admin-table">
                 <thead>
@@ -80,6 +106,7 @@
                 </tbody>
             </table>
         </div>
+        {{ pager('kpage', kpage, kpages, ktotal) }}
         {% else %}
         <p class="admin-empty">Ключей пока нет.</p>
         {% endif %}
@@ -89,12 +116,16 @@
     <div class="admin-panel">
         <h3>🏆 Выдать достижение игроку</h3>
         <form action="{{ url_for('admin_grant_achievement') }}" method="POST" class="admin-row">
-            <select name="user_id" required class="admin-select">
-                <option value="" disabled selected>Выберите игрока...</option>
+            <!-- Не <select> со всеми игроками: он раздувал HTML на десятки килобайт.
+                 Подсказки подгружаются в <datalist> по мере ввода. -->
+            <input type="text" id="grant-user-query" name="user_query" required
+                   list="admin-user-list" autocomplete="off"
+                   placeholder="Логин или ID игрока" class="admin-input grow">
+            <datalist id="admin-user-list">
                 {% for u in users %}
-                    <option value="{{ u.id }}">{{ u.username }} (ID: {{ u.id }})</option>
+                    <option value="{{ u.username }}">{{ u.username }} (ID: {{ u.id }})</option>
                 {% endfor %}
-            </select>
+            </datalist>
 
             <select name="achievement_id" required class="admin-select">
                 <option value="" disabled selected>Выберите достижение...</option>
@@ -109,8 +140,8 @@
 
     <!-- ===== Список выданных достижений ===== -->
     <div class="admin-panel">
-        <h3>📜 Выданные достижения игроков ({{ grants|length }})</h3>
-        {% if grants %}
+        <h3>📜 Выданные достижения игроков ({{ gtotal }})</h3>
+        {% if gtotal %}
         <div class="admin-table-wrap">
             <table class="admin-table">
                 <thead>
@@ -140,6 +171,7 @@
                 </tbody>
             </table>
         </div>
+        {{ pager('gpage', gpage, gpages, gtotal) }}
         {% else %}
         <p class="admin-empty">Пока ни одному игроку не выписаны достижения.</p>
         {% endif %}
@@ -208,7 +240,18 @@
 
     <!-- ===== Список пользователей ===== -->
     <div class="admin-panel">
-        <h3>👥 Список пользователей ({{ users|length }})</h3>
+        <h3>👥 Список пользователей ({{ utotal }}{% if q %} — найдено по «{{ q }}»{% endif %})</h3>
+
+        <!-- Поиск по логину или ID. Сбрасывает upage, но сохраняет страницы ключей и выдач. -->
+        <form method="GET" action="{{ url_for('admin_panel') }}" class="admin-row admin-search">
+            {% if kpage > 1 %}<input type="hidden" name="kpage" value="{{ kpage }}">{% endif %}
+            {% if gpage > 1 %}<input type="hidden" name="gpage" value="{{ gpage }}">{% endif %}
+            <input type="text" name="q" value="{{ q }}" placeholder="Поиск: логин или ID" class="admin-input grow">
+            <button type="submit" class="admin-btn admin-btn-primary">Найти</button>
+            {% if q %}
+            <a href="{{ url_for('admin_panel') }}" class="admin-btn admin-btn-neutral">Сбросить</a>
+            {% endif %}
+        </form>
 
         <!-- Отдельная форма для массовых действий (не оборачивает таблицу, т.к. внутри таблицы уже есть свои <form>) -->
         <form id="bulk-users-form" action="{{ url_for('admin_bulk_action') }}" method="POST" style="display:none;"></form>
@@ -348,6 +391,7 @@
                 </tbody>
             </table>
         </div>
+        {{ pager('upage', upage, upages, utotal) }}
     </div>
 
 </div>
@@ -401,6 +445,40 @@ function submitBulkAction(action, actionText) {
 </script>
 
 <script>
+    // Подсказки для <datalist> в форме выдачи достижения: вместо того чтобы
+    // рендерить в HTML всех игроков, подтягиваем до 20 совпадений по мере ввода.
+    (function () {
+        var input = document.getElementById('grant-user-query');
+        var list = document.getElementById('admin-user-list');
+        if (!input || !list) return;
+
+        var endpoint = "{{ url_for('admin_user_suggest') }}";
+        var timer = null;
+        var lastQuery = null;
+
+        input.addEventListener('input', function () {
+            var q = input.value.trim();
+            if (q.length < 2) return;
+            if (timer) clearTimeout(timer);
+            timer = setTimeout(function () {
+                if (q === lastQuery) return;
+                lastQuery = q;
+                fetch(endpoint + '?q=' + encodeURIComponent(q))
+                    .then(function (r) { return r.ok ? r.json() : []; })
+                    .then(function (rows) {
+                        list.innerHTML = '';
+                        (rows || []).forEach(function (row) {
+                            var opt = document.createElement('option');
+                            opt.value = row.username;
+                            opt.label = row.username + ' (ID: ' + row.id + ')';
+                            list.appendChild(opt);
+                        });
+                    })
+                    .catch(function () {});
+            }, 250);
+        });
+    })();
+
     function togglePw(btn) {
         const span = btn.previousElementSibling;
         const plain = span.getAttribute('data-plain');

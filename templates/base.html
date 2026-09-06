@@ -29,8 +29,10 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&display=swap" rel="stylesheet">
-<script src="https://cdn.tailwindcss.com"></script>
-<script src="https://unpkg.com/lucide@latest"></script>
+<!-- defer: скрипты не блокируют парсинг HTML, страница начинает рисоваться сразу -->
+<script src="https://cdn.tailwindcss.com" defer></script>
+<!-- Фиксированная версия: unpkg.com/lucide@latest отдаёт 302-редирект (~900 мс) -->
+<script src="https://unpkg.com/lucide@0.469.0/dist/umd/lucide.min.js" defer></script>
 <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
 
 <!-- Структурированные данные JSON-LD -->
@@ -73,7 +75,9 @@
   <div class="max-w-7xl mx-auto flex items-center justify-between bg-black/40 backdrop-blur-xl border border-white/10 rounded-[2rem] px-8 py-4">
     <a href="{{ url_for('index') }}" class="flex items-center gap-3">
       <div class="w-10 h-10 rounded-xl overflow-hidden shadow-[0_0_15px_rgba(168,85,247,0.5)]">
-        <img src="{{ url_for('static', filename='img/logo.png') }}" alt="Dark Visuals" class="w-full h-full object-cover">
+        <img src="{{ url_for('static', filename='img/logo.png') }}" alt="Dark Visuals"
+             width="40" height="40" fetchpriority="high" decoding="async"
+             class="w-full h-full object-cover">
       </div>
       <span class="text-xl font-bold tracking-tight text-glow">DARK VISUALS</span>
     </a>
@@ -135,7 +139,9 @@
       <div class="dv-footer-brand-col">
         <div class="flex items-center gap-3">
           <div class="w-10 h-10 rounded-xl overflow-hidden shadow-[0_0_20px_rgba(168,85,247,0.5)]">
-            <img src="{{ url_for('static', filename='img/logo.png') }}" alt="" class="w-full h-full object-cover">
+            <img src="{{ url_for('static', filename='img/logo.png') }}" alt=""
+                 width="40" height="40" loading="lazy" decoding="async"
+                 class="w-full h-full object-cover">
           </div>
           <span class="text-xl font-bold tracking-tight text-glow">DARK VISUALS</span>
         </div>
