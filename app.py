@@ -119,11 +119,11 @@ LAUNCHER_URL = os.environ.get(
 )
 
 FUNPAY_LINKS = {
-    "hwid_reset": "https://funpay.com/lots/offer?id=77074577",
-    "custom_achievement": "https://funpay.com/lots/offer?id=77074722",
-    "1_month": "https://funpay.com/lots/offer?id=77074208",
-    "120_days": "https://funpay.com/lots/offer?id=77074367",
-    "lifetime": "https://funpay.com/lots/offer?id=77074478",
+    "hwid_reset": "https://funpay.com/lots/offer?id=77075919",
+    "custom_achievement": "https://funpay.com/lots/offer?id=77075919",
+    "1_month": "https://funpay.com/lots/offer?id=77075709",
+    "120_days": "https://funpay.com/lots/offer?id=77075608",
+    "lifetime": "https://funpay.com/lots/offer?id=77075813",
 }
 
 PLANS = {
