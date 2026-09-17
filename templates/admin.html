@@ -208,10 +208,20 @@
 
     <!-- ===== Управление пользователями ===== -->
     <div class="admin-panel spotlight-card">
-        <h3>🛡️ Управление пользователями ({{ users|length }})</h3>
-        <p class="admin-note" style="margin:0 0 16px 0;">
-            Бан, заморозка, выдача подписки, сброс HWID, смена пароля и права администратора — всё в пару кликов.
-        </p>
+        <div class="user-mgmt-head">
+            <div>
+                <h3>🛡️ Управление пользователями ({{ users|length }})</h3>
+                <p class="admin-note" style="margin:0 0 16px 0;">
+                    Бан, заморозка, выдача подписки, сброс HWID, смена пароля и права администратора — всё в пару кликов.
+                </p>
+            </div>
+            <button type="button" id="userListToggle" class="admin-btn admin-btn-neutral user-list-toggle" onclick="toggleUserList()">
+                <span class="user-list-toggle-icon">▼</span>
+                <span class="user-list-toggle-text">Свернуть список</span>
+            </button>
+        </div>
+
+        <div id="userMgmtControls" class="user-list-collapsible">
 
         <!-- Отдельная форма для массовых действий (не оборачивает карточки, т.к. внутри карточек уже есть свои <form>) -->
         <form id="bulk-users-form" action="{{ url_for('admin_bulk_action') }}" method="POST" style="display:none;"></form>
@@ -374,6 +384,8 @@
             {% endfor %}
         </div>
         <p class="admin-empty user-empty" id="userEmptyMsg" style="display:none;">😕 Никто не найден. Попробуй другой фильтр или поисковый запрос.</p>
+
+        </div><!-- /userMgmtControls -->
     </div>
 
 </div>
@@ -502,5 +514,25 @@ function fallbackCopy(text) {
     try { document.execCommand('copy'); } catch (e) {}
     document.body.removeChild(ta);
 }
+
+// ===== Сворачивание списка пользователей (запоминается в localStorage) =====
+function toggleUserList() {
+    var controls = document.getElementById('userMgmtControls');
+    var btn = document.getElementById('userListToggle');
+    if (!controls || !btn) return;
+    var collapsed = controls.classList.toggle('collapsed');
+    btn.classList.toggle('collapsed', collapsed);
+    var textEl = btn.querySelector('.user-list-toggle-text');
+    var iconEl = btn.querySelector('.user-list-toggle-icon');
+    if (textEl) textEl.textContent = collapsed ? 'Показать список' : 'Свернуть список';
+    if (iconEl) iconEl.textContent = collapsed ? '▲' : '▼';
+    try { localStorage.setItem('dv-admin-users-collapsed', collapsed ? '1' : '0'); } catch (e) {}
+}
+
+(function () {
+    var saved = null;
+    try { saved = localStorage.getItem('dv-admin-users-collapsed'); } catch (e) {}
+    if (saved === '1') toggleUserList();
+})();
 </script>
 {% endblock %}
