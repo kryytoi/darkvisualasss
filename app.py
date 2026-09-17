@@ -46,6 +46,15 @@ app.config["SESSION_COOKIE_HTTPONLY"] = True
 app.config["SESSION_COOKIE_SAMESITE"] = "Lax"
 app.config["SESSION_COOKIE_SECURE"] = True  # на Vercel всегда HTTPS
 
+# Версия статики для cache-busting: меняй при каждом изменении css/js,
+# чтобы браузеры с кэшем подхватили новую версию (ссылки вида style.css?v=20260917b).
+STATIC_VERSION = os.environ.get("STATIC_VERSION", "20260917b")
+
+
+@app.context_processor
+def inject_static_version():
+    return {"STATIC_VERSION": STATIC_VERSION}
+
 @app.after_request
 def compress_response(resp):
     """
@@ -81,9 +90,15 @@ def compress_response(resp):
 def add_no_cache_headers(resp):
     # Статика (картинки, css, js) — кэшируем надолго, чтобы браузер не слал
     # повторные запросы с ответами 304 (они как раз давали огромные задержки).
+    # CSS/JS — исключение: кэшуем недолго (плюс к ссылкам на них добавляется
+    # ?v=<версия> из STATIC_VERSION, которая меняется при обновлении статики).
+    # Иначе после деплоя браузер мог неделю пользоваться старым style.css.
     path = request.path or ""
     if resp.status_code < 400 and (path.startswith("/static/") or path.startswith("/api/img/")):
-        resp.headers["Cache-Control"] = "public, max-age=31536000, immutable"
+        if path.startswith("/static/css/") or path.startswith("/static/js/"):
+            resp.headers["Cache-Control"] = "public, max-age=600, must-revalidate"
+        else:
+            resp.headers["Cache-Control"] = "public, max-age=31536000, immutable"
         resp.headers.pop("Expires", None)
         resp.headers.pop("Pragma", None)
         return resp
