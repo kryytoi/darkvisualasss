@@ -1307,6 +1307,13 @@ def admin_action():
         db.close()
         return redirect(url_for("admin_panel"))
 
+    # Не даём администратору банить/замораживать самого себя,
+    # чтобы он не заблокировал свой же доступ к панели.
+    if target_id == user.get("id") and action in ("ban", "freeze"):
+        db.close()
+        flash("Нельзя забанить или заморозить самого себя!", "warning")
+        return redirect(url_for("admin_panel"))
+
     if action == "ban":
         execute(db, "UPDATE users SET status = 'banned' WHERE id = %s", (target_id,))
         flash("Пользователь заблокирован!", "success")
@@ -1314,6 +1321,10 @@ def admin_action():
     elif action == "unban":
         execute(db, "UPDATE users SET status = 'active' WHERE id = %s", (target_id,))
         flash("Пользователь разблокирован!", "success")
+
+    elif action == "unfreeze":
+        execute(db, "UPDATE users SET status = 'active' WHERE id = %s", (target_id,))
+        flash("Подписка разморожена!", "success")
 
     elif action == "add_days":
         raw_days = str(request.form.get("days") or request.form.get("sub_days") or "").strip().lower()

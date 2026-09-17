@@ -8,7 +8,7 @@
   <div class="reveal-scale in w-full max-w-3xl mx-auto relative space-y-6">
 
     {# ==== Шапка профиля ==== #}
-    <div class="bg-neutral-900/40 backdrop-blur-xl border border-white/10 rounded-[2.5rem] p-10">
+    <div class="spotlight-card bg-neutral-900/40 backdrop-blur-xl border border-white/10 rounded-[2.5rem] p-10">
       <div class="flex flex-wrap items-center justify-between gap-4 mb-2">
         <div class="inline-flex items-center gap-2 px-4 py-2 rounded-full bg-purple-600/10 border border-purple-500/20 text-purple-400 text-xs font-bold">
           // АККАУНТ
@@ -28,7 +28,20 @@
       </div>
 
       <div class="flex flex-wrap items-center justify-between gap-4">
-        <h2 class="text-3xl font-black mb-1">{{ user.username }}</h2>
+        <div>
+          <h2 class="text-3xl font-black mb-1">{{ user.username }}</h2>
+          <div class="profile-id-row">
+            <span class="profile-id" title="Твой уникальный ID — нажми, чтобы скопировать" onclick="copyProfileId(this)" data-id="{{ user.id }}">
+              <i data-lucide="fingerprint" class="w-3.5 h-3.5"></i> ID: <b class="profile-id-num">{{ user.id }}</b>
+              <span class="profile-id-icon">⧉</span>
+            </span>
+            {% if user.created_at %}
+            <span class="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-white/5 border border-white/10 text-xs">
+              <i data-lucide="calendar-plus" class="w-3.5 h-3.5"></i> С нами с {{ (user.created_at or '')[:10] }}
+            </span>
+            {% endif %}
+          </div>
+        </div>
         <a href="{{ launcher_url }}" target="_blank" rel="noopener"
            class="glow-btn inline-flex items-center gap-2 px-6 py-3 rounded-2xl purple-gradient font-bold text-sm border-2 border-purple-400/60 shadow-[0_0_20px_rgba(168,85,247,0.35)] transition-all">
           <i data-lucide="download" class="w-4 h-4"></i> Скачать лаунчер
@@ -82,7 +95,7 @@
     <div class="grid md:grid-cols-2 gap-6">
 
       {# ==== Подписка ==== #}
-      <div class="bg-neutral-900/40 backdrop-blur-xl border border-white/10 rounded-[2.5rem] p-8">
+      <div class="spotlight-card bg-neutral-900/40 backdrop-blur-xl border border-white/10 rounded-[2.5rem] p-8">
         <h3 class="text-xl font-black mb-5 flex items-center gap-2">
           <i data-lucide="crown" class="w-5 h-5 text-purple-400"></i> Подписка
         </h3>
@@ -135,7 +148,7 @@
       </div>
 
       {# ==== Смена пароля ==== #}
-      <div class="bg-neutral-900/40 backdrop-blur-xl border border-white/10 rounded-[2.5rem] p-8">
+      <div class="spotlight-card bg-neutral-900/40 backdrop-blur-xl border border-white/10 rounded-[2.5rem] p-8">
         <h3 class="text-xl font-black mb-5 flex items-center gap-2">
           <i data-lucide="lock" class="w-5 h-5 text-purple-400"></i> Смена пароля
         </h3>
@@ -166,7 +179,7 @@
     </div>
 
     {# ==== Библиотека: Косметика / Ресурс-паки / Конфиги ==== #}
-    <div class="bg-neutral-900/40 backdrop-blur-xl border border-white/10 rounded-[2.5rem] p-8">
+    <div class="spotlight-card bg-neutral-900/40 backdrop-blur-xl border border-white/10 rounded-[2.5rem] p-8">
       <h3 class="text-xl font-black mb-5 flex items-center gap-2">
         <i data-lucide="layout-grid" class="w-5 h-5 text-purple-400"></i> Библиотека
       </h3>
@@ -195,6 +208,58 @@
 </section>
 
 <style>
+.profile-id-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 14px;
+}
+.profile-id {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 14px;
+  border-radius: 999px;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--purple-light);
+  background: rgba(124, 58, 237, 0.12);
+  border: 1px solid rgba(168, 85, 247, 0.35);
+  cursor: pointer;
+  user-select: none;
+  transition: transform .2s ease, box-shadow .25s ease, background .25s ease, border-color .25s ease;
+  animation: profileIdPulse 3s ease-in-out infinite;
+}
+.profile-id b {
+  color: #fff;
+  font-family: 'JetBrains Mono', ui-monospace, monospace;
+  font-weight: 800;
+  letter-spacing: 1px;
+}
+.profile-id-icon {
+  font-size: 12px;
+  opacity: .55;
+  transition: opacity .2s, transform .2s;
+}
+.profile-id:hover {
+  background: rgba(124, 58, 237, 0.25);
+  border-color: var(--purple-light);
+  transform: translateY(-2px);
+  box-shadow: 0 0 22px rgba(168, 85, 247, 0.45);
+  animation-play-state: paused;
+}
+.profile-id:hover .profile-id-icon { opacity: 1; transform: scale(1.15); }
+.profile-id.copied {
+  background: rgba(34, 197, 94, 0.15);
+  border-color: rgba(34, 197, 94, 0.5);
+  color: #4ade80;
+}
+@keyframes profileIdPulse {
+  0%, 100% { box-shadow: 0 0 0 rgba(168, 85, 247, 0); }
+  50% { box-shadow: 0 0 18px rgba(168, 85, 247, 0.35); }
+}
+
 .lib-tabs {
   display: flex;
   background: rgba(255, 255, 255, 0.04);
@@ -236,6 +301,35 @@
 </style>
 
 <script>
+function copyProfileId(el) {
+  var id = el.getAttribute('data-id');
+  var icon = el.querySelector('.profile-id-icon');
+  function done() {
+    if (icon) icon.textContent = '✓';
+    el.classList.add('copied');
+    setTimeout(function () {
+      if (icon) icon.textContent = '⧉';
+      el.classList.remove('copied');
+    }, 1200);
+  }
+  function fallback() {
+    var ta = document.createElement('textarea');
+    ta.value = id;
+    ta.style.position = 'fixed';
+    ta.style.opacity = '0';
+    document.body.appendChild(ta);
+    ta.select();
+    try { document.execCommand('copy'); } catch (e) {}
+    document.body.removeChild(ta);
+  }
+  if (navigator.clipboard && navigator.clipboard.writeText) {
+    navigator.clipboard.writeText(id).then(done).catch(function () { fallback(); done(); });
+  } else {
+    fallback();
+    done();
+  }
+}
+
 (function () {
   var tabs = document.querySelectorAll('.lib-tab');
   var panels = document.querySelectorAll('.lib-panel');

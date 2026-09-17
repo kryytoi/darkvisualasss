@@ -1,3 +1,49 @@
+// ===== Мягкое фиолетовое свечение, следующее за курсором =====
+(function () {
+  if (window.matchMedia('(prefers-reduced-motion: reduce)').matches) return;
+  if (!window.matchMedia('(pointer: fine)').matches) return;
+  var glow = document.querySelector('.dv-cursor-glow');
+  if (!glow) return;
+
+  var tx = window.innerWidth / 2;
+  var ty = window.innerHeight / 3;
+  var x = tx;
+  var y = ty;
+  var shown = false;
+  var R = 280; // половина размера пятна света (560px)
+
+  document.addEventListener('mousemove', function (e) {
+    tx = e.clientX;
+    ty = e.clientY;
+    if (!shown) {
+      shown = true;
+      glow.classList.add('on');
+    }
+  });
+  document.documentElement.addEventListener('mouseleave', function () {
+    shown = false;
+    glow.classList.remove('on');
+  });
+
+  (function loop() {
+    x += (tx - x) * 0.09;
+    y += (ty - y) * 0.09;
+    glow.style.transform = 'translate(' + (x - R) + 'px, ' + (y - R) + 'px)';
+    requestAnimationFrame(loop);
+  })();
+})();
+
+// ===== Spotlight: подсветка карточек следует за курсором =====
+(function () {
+  document.querySelectorAll('.spotlight-card').forEach(function (card) {
+    card.addEventListener('mousemove', function (e) {
+      var rect = card.getBoundingClientRect();
+      card.style.setProperty('--mx', (e.clientX - rect.left) + 'px');
+      card.style.setProperty('--my', (e.clientY - rect.top) + 'px');
+    });
+  });
+})();
+
 document.addEventListener('DOMContentLoaded', function () {
   if (window.lucide) lucide.createIcons();
 
