@@ -59,24 +59,42 @@
   <div class="dv-shooting c3"></div>
 </div>
 
-<!-- Живой космос на фоне (для всех страниц) -->
-<div class="bg-cosmos" aria-hidden="true">
-  <div class="cosmos-stars s1"></div>
-  <div class="cosmos-stars s2"></div>
-  <div class="cosmos-nebula"></div>
-  <div class="shooting-star c1"></div>
-  <div class="shooting-star c2"></div>
-  <div class="shooting-star c3"></div>
+<!-- Фиолетовая сетка (клетки) на фоне: плоская + перспективный «пол» -->
+<div class="dv-grid-bg" aria-hidden="true">
+  <div class="dv-grid-flat"></div>
+  <div class="dv-grid-floor"></div>
+  <div class="dv-grid-horizon"></div>
 </div>
+
+<!-- Плавающие светящиеся частицы -->
+<div class="dv-particles" aria-hidden="true">
+  <span style="left:6%;  animation-duration:16s; animation-delay:0s;   width:4px; height:4px;"></span>
+  <span style="left:16%; animation-duration:21s; animation-delay:4s;   width:3px; height:3px;"></span>
+  <span style="left:27%; animation-duration:18s; animation-delay:9s;   width:5px; height:5px;"></span>
+  <span style="left:38%; animation-duration:24s; animation-delay:2s;   width:3px; height:3px;"></span>
+  <span style="left:49%; animation-duration:17s; animation-delay:11s;  width:4px; height:4px;"></span>
+  <span style="left:60%; animation-duration:22s; animation-delay:6s;   width:3px; height:3px;"></span>
+  <span style="left:71%; animation-duration:19s; animation-delay:13s;  width:5px; height:5px;"></span>
+  <span style="left:82%; animation-duration:23s; animation-delay:3s;   width:4px; height:4px;"></span>
+  <span style="left:91%; animation-duration:15s; animation-delay:8s;   width:3px; height:3px;"></span>
+</div>
+
+<!-- Мягкое свечение, следующее за курсором -->
+<div class="dv-cursor-glow" aria-hidden="true"></div>
 
 <nav class="fixed top-0 left-0 right-0 z-50 px-6 py-6">
   <div class="max-w-7xl mx-auto flex items-center justify-between bg-black/40 backdrop-blur-xl border border-white/10 rounded-[2rem] px-8 py-4">
-    <a href="{{ url_for('index') }}" class="flex items-center gap-3">
-      <div class="w-10 h-10 rounded-xl overflow-hidden shadow-[0_0_15px_rgba(168,85,247,0.5)]">
-        <img src="{{ url_for('static', filename='img/logo.png') }}" alt="Dark Visuals" class="w-full h-full object-cover">
-      </div>
-      <span class="text-xl font-bold tracking-tight text-glow">DARK VISUALS</span>
-    </a>
+    <div class="flex items-center gap-3">
+      <a href="{{ url_for('index') }}" class="flex items-center gap-3 group">
+        <div class="w-10 h-10 rounded-xl overflow-hidden shadow-[0_0_15px_rgba(168,85,247,0.5)] transition-transform duration-300 group-hover:scale-110 group-hover:rotate-6">
+          <img src="{{ url_for('static', filename='img/logo.png') }}" alt="Dark Visuals" class="w-full h-full object-cover">
+        </div>
+        <span class="text-xl font-black tracking-tight dv-brand-anim">DARK VISUALS</span>
+      </a>
+      <span class="dv-status-pill" title="Сервер работает">
+        <span class="dv-pulse-dot"></span> ONLINE
+      </span>
+    </div>
 
     <div class="hidden md:flex items-center gap-8">
       <a href="{{ url_for('index') }}#features" class="text-sm font-medium text-neutral-400 hover:text-purple-400 transition-colors">Функции</a>
@@ -170,6 +188,9 @@
 
     <div class="dv-footer-bottom">
       <span>&copy; 2026 Dark Visuals</span>
+      <span class="dv-footer-live">
+        <span class="dv-pulse-dot"></span> Все системы в норме
+      </span>
       <span class="flex items-center gap-2">Сделано для <span class="dv-version-badge">Fabric 1.21.4</span></span>
     </div>
   </div>

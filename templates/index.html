@@ -46,19 +46,19 @@
 <!-- Статистика -->
 <section class="dv-stats reveal">
   <div class="dv-stats-inner">
-    <div class="dv-stat">
+    <div class="spotlight-card dv-stat">
       <div class="dv-stat-number" data-count="10000">0</div>
       <div class="dv-stat-label">FPS в бою</div>
     </div>
-    <div class="dv-stat">
+    <div class="spotlight-card dv-stat">
       <div class="dv-stat-number" data-count="40">0</div>
       <div class="dv-stat-label">модулей</div>
     </div>
-    <div class="dv-stat">
+    <div class="spotlight-card dv-stat">
       <div class="dv-stat-number" data-count="30">0</div>
       <div class="dv-stat-label">эффектов</div>
     </div>
-    <div class="dv-stat">
+    <div class="spotlight-card dv-stat">
       <div class="dv-stat-number" data-count="99">0</div>
       <div class="dv-stat-suffix">%</div>
       <div class="dv-stat-label">аптайм</div>
@@ -129,13 +129,41 @@
 })();
 </script>
 
+<!-- Бегущая строка с модулями -->
+<div class="dv-marquee" aria-hidden="true">
+  <div class="dv-marquee-track">
+    <span class="dv-marquee-item">PvP Ассистент</span>
+    <span class="dv-marquee-item">ChinaHat</span>
+    <span class="dv-marquee-item">JumpCircle</span>
+    <span class="dv-marquee-item">Snow Trails</span>
+    <span class="dv-marquee-item">Fullbright</span>
+    <span class="dv-marquee-item">Target ESP</span>
+    <span class="dv-marquee-item">Custom Hitbox</span>
+    <span class="dv-marquee-item">HUD</span>
+    <span class="dv-marquee-item">NoRender</span>
+    <span class="dv-marquee-item">Fabric 1.21.4</span>
+    <span class="dv-marquee-item">Right Shift</span>
+    <span class="dv-marquee-item">PvP Ассистент</span>
+    <span class="dv-marquee-item">ChinaHat</span>
+    <span class="dv-marquee-item">JumpCircle</span>
+    <span class="dv-marquee-item">Snow Trails</span>
+    <span class="dv-marquee-item">Fullbright</span>
+    <span class="dv-marquee-item">Target ESP</span>
+    <span class="dv-marquee-item">Custom Hitbox</span>
+    <span class="dv-marquee-item">HUD</span>
+    <span class="dv-marquee-item">NoRender</span>
+    <span class="dv-marquee-item">Fabric 1.21.4</span>
+    <span class="dv-marquee-item">Right Shift</span>
+  </div>
+</div>
+
 <section id="features" class="section">
   <div class="section-head reveal">
     <span class="section-tag">// Возможности</span>
     <h2>Всё, что нужно для красивого PvP</h2>
   </div>
   <div class="features">
-    <div class="feature-card tilt-3d reveal">
+    <div class="spotlight-card feature-card tilt-3d reveal">
       <div class="feature-icon">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
           <path d="M14.5 3l6.5 6.5-2 2-1-1-8 8-3 1 1-3 8-8-1-1z"/><path d="M3 21l3-1"/>
@@ -144,7 +172,7 @@
       <h3>PvP-ассистент</h3>
       <p>Подсказки по таймингу удара, отображение крит-урона и полезные визуальные индикаторы во время боя.</p>
     </div>
-    <div class="feature-card tilt-3d reveal" style="transition-delay: 0.1s;">
+    <div class="spotlight-card feature-card tilt-3d reveal" style="transition-delay: 0.1s;">
       <div class="feature-icon">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
           <path d="M12 3l1.8 4.6L18 9.5l-4.2 1.9L12 16l-1.8-4.6L6 9.5l4.2-1.9L12 3z"/><path d="M19 14l.8 2 2 .8-2 .8-.8 2-.8-2-2-.8 2-.8.8-2z"/>
@@ -153,7 +181,7 @@
       <h3>Визуальные эффекты</h3>
       <p>ChinaHat, JumpCircle, Snow, трейлы и подсветка попаданий — бои эффектнее без падения FPS.</p>
     </div>
-    <div class="feature-card tilt-3d reveal" style="transition-delay: 0.2s;">
+    <div class="spotlight-card feature-card tilt-3d reveal" style="transition-delay: 0.2s;">
       <div class="feature-icon">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
           <path d="M12 3l7 3v5c0 4.5-3 8-7 10-4-2-7-5.5-7-10V6l7-3z"/>
@@ -162,7 +190,7 @@
       <h3>Безопасность</h3>
       <p>Не использует читерские механики (авто-клик, kill-aura) — только честные визуальные улучшения.</p>
     </div>
-    <div class="feature-card tilt-3d reveal" style="transition-delay: 0.3s;">
+    <div class="spotlight-card feature-card tilt-3d reveal" style="transition-delay: 0.3s;">
       <div class="feature-icon">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
           <rect x="3" y="4" width="18" height="14" rx="2"/><path d="M8 21h8M12 18v3"/>
@@ -198,7 +226,7 @@
   </div>
   <div class="pricing">
     {% for key, plan in plans.items() %}
-      <div class="plan-card tilt-3d reveal {% if key == '120' %}highlight{% endif %}">
+      <div class="spotlight-card plan-card tilt-3d reveal {% if key == '120' %}highlight{% endif %}">
         {% if key == '120' %}<span class="badge">Популярно</span>{% endif %}
         <h3>{{ plan.name }}</h3>
         <div class="price">{{ plan.price }}</div>
@@ -224,21 +252,21 @@
     <p class="section-sub">Команда и ключевые участники Dark Visuals</p>
   </div>
   <div class="trusted-grid reveal">
-    <div class="trusted-card tilt-3d">
+    <div class="spotlight-card trusted-card tilt-3d">
       <div class="avatar-wrapper avatar-accent">
         <img src="{{ url_for('static', filename='img/MrDarko.png') }}" alt="MrDarko" class="trusted-avatar">
       </div>
       <h3>MrDarko</h3>
       <span class="trusted-role role-creator">создатель</span>
     </div>
-    <div class="trusted-card tilt-3d">
+    <div class="spotlight-card trusted-card tilt-3d">
       <div class="avatar-wrapper avatar-blue">
         <img src="{{ url_for('static', filename='img/Meow.png') }}" alt="Meow" class="trusted-avatar">
       </div>
       <h3>Meow</h3>
       <span class="trusted-role role-tester">Тестер</span>
     </div>
-    <div class="trusted-card tilt-3d">
+    <div class="spotlight-card trusted-card tilt-3d">
       <div class="avatar-wrapper avatar-pink">
         <img src="{{ url_for('static', filename='img/PipaKiva.png') }}" alt="PipaKiva" class="trusted-avatar">
       </div>

@@ -206,171 +206,244 @@
         {% endif %}
     </div>
 
-    <!-- ===== Список пользователей ===== -->
-    <div class="admin-panel">
-        <h3>👥 Список пользователей ({{ users|length }})</h3>
+    <!-- ===== Управление пользователями ===== -->
+    <div class="admin-panel spotlight-card">
+        <h3>🛡️ Управление пользователями ({{ users|length }})</h3>
+        <p class="admin-note" style="margin:0 0 16px 0;">
+            Бан, заморозка, выдача подписки, сброс HWID, смена пароля и права администратора — всё в пару кликов.
+        </p>
 
-        <!-- Отдельная форма для массовых действий (не оборачивает таблицу, т.к. внутри таблицы уже есть свои <form>) -->
+        <!-- Отдельная форма для массовых действий (не оборачивает карточки, т.к. внутри карточек уже есть свои <form>) -->
         <form id="bulk-users-form" action="{{ url_for('admin_bulk_action') }}" method="POST" style="display:none;"></form>
 
-        <div class="admin-actions" id="bulk-actions-bar" style="margin-bottom:10px; align-items:center; gap:8px; display:flex; flex-wrap:wrap;">
-            <span style="color:var(--text-dim); font-size:13px;">Выбрано: <span id="bulk-selected-count">0</span></span>
-            <button type="button" class="admin-btn admin-btn-success xs" onclick="submitBulkAction('unban', 'разбанить');">Разбанить выбранных</button>
-            <button type="button" class="admin-btn admin-btn-danger xs" onclick="submitBulkAction('ban', 'забанить');">Забанить выбранных</button>
-            <button type="button" class="admin-btn admin-btn-warn xs" onclick="submitBulkAction('freeze', 'заморозить');">Заморозить выбранных</button>
-            <button type="button" class="admin-btn admin-btn-danger xs" onclick="submitBulkAction('delete', 'удалить НАВСЕГДА');">🗑 Удалить выбранных</button>
+        <!-- Панель поиска и фильтров -->
+        <div class="user-mgmt-toolbar">
+            <div class="user-search">
+                <span class="user-search-icon">🔍</span>
+                <input type="text" id="userSearchInput" placeholder="Поиск по логину или ID..." oninput="filterUserCards()">
+            </div>
+            <div class="user-filters" id="userFilters">
+                <button type="button" class="user-filter active" data-filter="all" onclick="setUserFilter(this)">Все</button>
+                <button type="button" class="user-filter" data-filter="active" onclick="setUserFilter(this)">Активные</button>
+                <button type="button" class="user-filter" data-filter="banned" onclick="setUserFilter(this)">Забаненные</button>
+                <button type="button" class="user-filter" data-filter="frozen" onclick="setUserFilter(this)">Замороженные</button>
+            </div>
         </div>
-        <div class="admin-table-wrap">
-            <table class="admin-table">
-                <thead>
-                    <tr>
-                        <th><input type="checkbox" id="bulk-select-all" onclick="toggleAllUserCheckboxes(this)"></th>
-                        <th>ID</th>
-                        <th>Логин</th>
-                        <th>Пароль</th>
-                        <th>Роль</th>
-                        <th>Статус</th>
-                        <th>Подписка</th>
-                        <th>HWID</th>
-                        <th>Действия</th>
-                    </tr>
-                </thead>
-                <tbody>
-                    {% for u in users %}
-                    <tr>
-                        <td><input type="checkbox" name="user_ids" value="{{ u.id }}" class="bulk-user-checkbox" onclick="updateBulkSelectedCount()"></td>
-                        <td><span class="mono">{{ u.id }}</span></td>
-                        <td>
-                            <strong>{{ u.username }}</strong>
-                            {% if u.is_admin %}
-                                <span class="admin-badge badge-admin" style="margin-left:6px;">ADMIN</span>
-                            {% endif %}
-                        </td>
-                        <td>
-                            <div class="admin-pw-group">
-                                <span class="pw-value mono" data-plain="{{ u.password_plain or '' }}" style="color:#ddd;">••••••••</span>
-                                <button type="button" onclick="togglePw(this)" title="Показать/скрыть пароль" class="pw-toggle">👁</button>
-                            </div>
-                            <form action="{{ url_for('admin_action') }}" method="POST" class="admin-inline-form">
-                                <input type="hidden" name="user_id" value="{{ u.id }}">
-                                <input type="hidden" name="action" value="change_password">
-                                <input type="text" name="new_password" placeholder="Новый пароль" class="admin-input pw-inline">
-                                <button type="submit" class="admin-btn admin-btn-neutral xs">✎</button>
-                            </form>
-                        </td>
-                        <td style="color:var(--text-dim);">{{ u.role or 'User' }}</td>
-                        <td>
+
+        <!-- Массовые действия -->
+        <div class="user-bulk-bar">
+            <label class="user-bulk-selectall">
+                <input type="checkbox" id="bulk-select-all" onchange="toggleAllUserCheckboxes(this)">
+                <span>Выбрать все видимые</span>
+            </label>
+            <span class="user-bulk-count">Выбрано: <span id="bulk-selected-count">0</span></span>
+            <div class="admin-actions" style="margin-left:auto;">
+                <button type="button" class="admin-btn admin-btn-success xs" onclick="submitBulkAction('unban', 'разбанить');">Разбанить</button>
+                <button type="button" class="admin-btn admin-btn-warn xs" onclick="submitBulkAction('freeze', 'заморозить');">Заморозить</button>
+                <button type="button" class="admin-btn admin-btn-danger xs" onclick="submitBulkAction('ban', 'забанить');">Забанить</button>
+                <button type="button" class="admin-btn admin-btn-danger xs" onclick="submitBulkAction('delete', 'удалить НАВСЕГДА');">🗑 Удалить</button>
+            </div>
+        </div>
+
+        <!-- Карточки пользователей -->
+        <div class="user-cards" id="userCards">
+            {% for u in users %}
+            {% set status = u.status if u.status in ('banned', 'frozen') else 'active' %}
+            <div class="user-card status-{{ status }} {% if u.is_admin %}is-admin{% endif %}" data-status="{{ status }}" data-search="{{ u.username }} {{ u.id }}">
+                <div class="user-card-top">
+                    <input type="checkbox" class="bulk-user-checkbox" value="{{ u.id }}" onchange="updateBulkSelectedCount()" title="Выбрать для массовых действий">
+                    <div class="user-avatar {% if u.avatar_url %}has-photo{% endif %}">{{ u.username[:2]|upper if u.username else '?' }}</div>
+                    <div class="user-ident">
+                        <div class="user-name-row">
+                            <strong class="user-name">{{ u.username }}</strong>
+                            {% if u.is_admin %}<span class="admin-badge badge-admin">ADMIN</span>{% endif %}
+                            <span class="user-id-chip" title="Кликни, чтобы скопировать ID" onclick="copyUserId(this)" data-copy="{{ u.id }}">ID: {{ u.id }} <span class="user-id-copy">⧉</span></span>
+                        </div>
+                        <div class="user-meta">
                             {% if u.status == 'banned' %}
-                                <span class="admin-badge badge-banned">Забанен</span>
+                                <span class="admin-badge badge-banned">⛔ Забанен</span>
                             {% elif u.status == 'frozen' %}
-                                <span class="admin-badge badge-frozen">Заморожен</span>
+                                <span class="admin-badge badge-frozen">❄ Заморожен</span>
                             {% else %}
-                                <span class="admin-badge badge-active">Активен</span>
+                                <span class="admin-badge badge-active">✔ Активен</span>
                             {% endif %}
-                        </td>
-                        <td style="font-size:13px;">
-                            {% if u.expires_at == 'forever' %}
-                                <span class="badge-forever">Навсегда</span>
-                            {% elif u.expires_at %}
-                                <span class="badge-sub">{{ u.expires_at[:16].replace('T', ' ') }}</span>
-                            {% else %}
-                                <span class="badge-none">Нет</span>
-                            {% endif %}
-                        </td>
-                        <td>
-                            <span class="mono" title="{{ u.hwid }}">{% if u.hwid %}{{ u.hwid[:12] }}...{% else %}Не привязан{% endif %}</span>
-                        </td>
-                        <td>
-                            <div class="admin-actions">
-                                <form action="{{ url_for('admin_action') }}" method="POST" class="admin-inline-form" style="margin-top:0;">
-                                    <input type="hidden" name="user_id" value="{{ u.id }}">
-                                    <input type="hidden" name="action" value="add_days">
-                                    <input type="text" name="days" placeholder="Дней (напр. 30)" required class="admin-input tiny">
-                                    <button type="submit" class="admin-btn admin-btn-success xs">+ Выдать</button>
-                                </form>
-
-                                {% if u.hwid %}
-                                <form action="{{ url_for('admin_action') }}" method="POST">
-                                    <input type="hidden" name="user_id" value="{{ u.id }}">
-                                    <input type="hidden" name="action" value="reset_hwid">
-                                    <button type="submit" class="admin-btn admin-btn-info xs">Сброс HWID</button>
-                                </form>
-                                {% endif %}
-
-                                {% if u.status == 'banned' %}
-                                <form action="{{ url_for('admin_action') }}" method="POST">
-                                    <input type="hidden" name="user_id" value="{{ u.id }}">
-                                    <input type="hidden" name="action" value="unban">
-                                    <button type="submit" class="admin-btn admin-btn-success xs">Разбанить</button>
-                                </form>
+                            <span class="user-meta-item">
+                                {% if u.expires_at == 'forever' %}
+                                    <span class="badge-forever">∞ Навсегда</span>
+                                {% elif u.expires_at %}
+                                    <span class="badge-sub">до {{ u.expires_at[:16].replace('T', ' ') }}</span>
                                 {% else %}
-                                <form action="{{ url_for('admin_action') }}" method="POST">
-                                    <input type="hidden" name="user_id" value="{{ u.id }}">
-                                    <input type="hidden" name="action" value="ban">
-                                    <button type="submit" class="admin-btn admin-btn-danger xs">Бан</button>
-                                </form>
+                                    <span class="badge-none">без подписки</span>
                                 {% endif %}
+                            </span>
+                            <span class="user-meta-item" title="{{ u.hwid or 'HWID не привязан' }}">
+                                HWID: {% if u.hwid %}{{ u.hwid[:10] }}…{% else %}—{% endif %}
+                            </span>
+                        </div>
+                    </div>
+                </div>
 
-                                {% if u.status != 'frozen' and u.status != 'banned' %}
-                                <form action="{{ url_for('admin_action') }}" method="POST">
-                                    <input type="hidden" name="user_id" value="{{ u.id }}">
-                                    <input type="hidden" name="action" value="freeze">
-                                    <button type="submit" class="admin-btn admin-btn-warn xs">Заморозить</button>
-                                </form>
-                                {% endif %}
+                <div class="user-card-actions">
+                    <!-- Статус: бан / разбан -->
+                    {% if u.status == 'banned' %}
+                    <form action="{{ url_for('admin_action') }}" method="POST">
+                        <input type="hidden" name="user_id" value="{{ u.id }}">
+                        <input type="hidden" name="action" value="unban">
+                        <button type="submit" class="admin-btn admin-btn-success xs">✔ Разбанить</button>
+                    </form>
+                    {% else %}
+                    <form action="{{ url_for('admin_action') }}" method="POST">
+                        <input type="hidden" name="user_id" value="{{ u.id }}">
+                        <input type="hidden" name="action" value="ban">
+                        <button type="submit" class="admin-btn admin-btn-danger xs"
+                                {% if u.id != current_user.id %}onclick="return confirm('Забанить {{ u.username }}?');"{% endif %}>⛔ Бан</button>
+                    </form>
+                    {% endif %}
 
-                                {% if u.is_admin %}
-                                <form action="{{ url_for('admin_action') }}" method="POST"
-                                      onsubmit="return confirm('Забрать права администратора у {{ u.username }}?');">
-                                    <input type="hidden" name="user_id" value="{{ u.id }}">
-                                    <input type="hidden" name="action" value="remove_admin">
-                                    <button type="submit" class="admin-btn admin-btn-neutral xs">Забрать админку</button>
-                                </form>
-                                {% else %}
-                                <form action="{{ url_for('admin_action') }}" method="POST"
-                                      onsubmit="return confirm('Выдать права администратора {{ u.username }}?');">
-                                    <input type="hidden" name="user_id" value="{{ u.id }}">
-                                    <input type="hidden" name="action" value="make_admin">
-                                    <button type="submit" class="admin-btn admin-btn-primary xs">Выдать админку</button>
-                                </form>
-                                {% endif %}
+                    <!-- Статус: заморозка / разморозка -->
+                    {% if u.status == 'frozen' %}
+                    <form action="{{ url_for('admin_action') }}" method="POST">
+                        <input type="hidden" name="user_id" value="{{ u.id }}">
+                        <input type="hidden" name="action" value="unfreeze">
+                        <button type="submit" class="admin-btn admin-btn-success xs">☀ Разморозить</button>
+                    </form>
+                    {% elif u.status != 'banned' %}
+                    <form action="{{ url_for('admin_action') }}" method="POST">
+                        <input type="hidden" name="user_id" value="{{ u.id }}">
+                        <input type="hidden" name="action" value="freeze">
+                        <button type="submit" class="admin-btn admin-btn-warn xs"
+                                {% if u.id != current_user.id %}onclick="return confirm('Заморозить {{ u.username }}? Подписка будет на паузе.');"{% endif %}>❄ Заморозить</button>
+                    </form>
+                    {% endif %}
 
-                                <form action="{{ url_for('admin_action') }}" method="POST"
-                                      onsubmit="return confirm('{% if u.id == current_user.id %}Ты точно хочешь удалить СЕБЯ навсегда? Ты потеряешь доступ к админке! Это действие необратимо!{% elif u.is_admin %}Ты точно хочешь удалить АДМИНА {{ u.username }} навсегда? Это действие необратимо!{% else %}Удалить пользователя {{ u.username }} НАВСЕГДА? Это действие необратимо!{% endif %}');">
-                                    <input type="hidden" name="user_id" value="{{ u.id }}">
-                                    <input type="hidden" name="action" value="delete">
-                                    <button type="submit" class="admin-btn admin-btn-danger xs">🗑 Удалить</button>
-                                </form>
-                            </div>
-                        </td>
-                    </tr>
-                    {% endfor %}
-                </tbody>
-            </table>
+                    <!-- Выдать подписку -->
+                    <form action="{{ url_for('admin_action') }}" method="POST" class="user-sub-form">
+                        <input type="hidden" name="user_id" value="{{ u.id }}">
+                        <input type="hidden" name="action" value="add_days">
+                        <input type="text" name="days" placeholder="Дней / forever" required class="admin-input tiny">
+                        <button type="submit" class="admin-btn admin-btn-success xs">+ Подписка</button>
+                    </form>
+
+                    <!-- Сброс HWID -->
+                    {% if u.hwid %}
+                    <form action="{{ url_for('admin_action') }}" method="POST">
+                        <input type="hidden" name="user_id" value="{{ u.id }}">
+                        <input type="hidden" name="action" value="reset_hwid">
+                        <button type="submit" class="admin-btn admin-btn-info xs"
+                                onclick="return confirm('Сбросить HWID у {{ u.username }}?')">HWID ↺</button>
+                    </form>
+                    {% endif %}
+
+                    <!-- Смена пароля -->
+                    <form action="{{ url_for('admin_action') }}" method="POST" class="user-pw-form">
+                        <input type="hidden" name="user_id" value="{{ u.id }}">
+                        <input type="hidden" name="action" value="change_password">
+                        <input type="text" name="new_password" placeholder="Новый пароль" required class="admin-input tiny">
+                        <button type="submit" class="admin-btn admin-btn-neutral xs"
+                                onclick="return confirm('Сменить пароль {{ u.username }}?')">✎ Пароль</button>
+                    </form>
+
+                    <span class="user-card-sep"></span>
+
+                    <!-- Права админа -->
+                    {% if u.is_admin %}
+                    <form action="{{ url_for('admin_action') }}" method="POST"
+                          onsubmit="return confirm('Забрать права администратора у {{ u.username }}?');">
+                        <input type="hidden" name="user_id" value="{{ u.id }}">
+                        <input type="hidden" name="action" value="remove_admin">
+                        <button type="submit" class="admin-btn admin-btn-neutral xs">− Админка</button>
+                    </form>
+                    {% else %}
+                    <form action="{{ url_for('admin_action') }}" method="POST"
+                          onsubmit="return confirm('Выдать права администратора {{ u.username }}?');">
+                        <input type="hidden" name="user_id" value="{{ u.id }}">
+                        <input type="hidden" name="action" value="make_admin">
+                        <button type="submit" class="admin-btn admin-btn-primary xs">+ Админка</button>
+                    </form>
+                    {% endif %}
+
+                    <!-- Удаление -->
+                    <form action="{{ url_for('admin_action') }}" method="POST"
+                          onsubmit="return confirm('{% if u.id == current_user.id %}Ты точно хочешь удалить СЕБЯ навсегда? Ты потеряешь доступ к админке! Это действие необратимо!{% elif u.is_admin %}Ты точно хочешь удалить АДМИНА {{ u.username }} навсегда? Это действие необратимо!{% else %}Удалить пользователя {{ u.username }} НАВСЕГДА? Это действие необратимо!{% endif %}');">
+                        <input type="hidden" name="user_id" value="{{ u.id }}">
+                        <input type="hidden" name="action" value="delete">
+                        <button type="submit" class="admin-btn admin-btn-danger xs">🗑</button>
+                    </form>
+                </div>
+            </div>
+            {% endfor %}
         </div>
+        <p class="admin-empty user-empty" id="userEmptyMsg" style="display:none;">😕 Никто не найден. Попробуй другой фильтр или поисковый запрос.</p>
     </div>
 
 </div>
 
 <script>
+var currentUserFilter = 'all';
+
+function visibleUserCards() {
+    return Array.prototype.filter.call(
+        document.querySelectorAll('#userCards .user-card'),
+        function (card) { return card.style.display !== 'none'; }
+    );
+}
+
+function visibleCheckboxes() {
+    return Array.prototype.filter.call(
+        document.querySelectorAll('#userCards .bulk-user-checkbox'),
+        function (cb) { return cb.closest('.user-card').style.display !== 'none'; }
+    );
+}
+
 function updateBulkSelectedCount() {
-    var count = document.querySelectorAll('.bulk-user-checkbox:checked').length;
+    var visible = visibleCheckboxes();
+    var checked = visible.filter(function (cb) { return cb.checked; }).length;
     var el = document.getElementById('bulk-selected-count');
-    if (el) el.textContent = count;
-    var all = document.querySelectorAll('.bulk-user-checkbox');
+    if (el) el.textContent = checked;
     var selectAll = document.getElementById('bulk-select-all');
-    if (selectAll) selectAll.checked = all.length > 0 && count === all.length;
+    if (selectAll) selectAll.checked = visible.length > 0 && checked === visible.length;
+
+    var cards = visibleUserCards();
+    var empty = document.getElementById('userEmptyMsg');
+    if (empty) empty.style.display = cards.length ? 'none' : 'block';
 }
 
 function toggleAllUserCheckboxes(source) {
-    document.querySelectorAll('.bulk-user-checkbox').forEach(function (cb) {
+    visibleCheckboxes().forEach(function (cb) {
         cb.checked = source.checked;
     });
     updateBulkSelectedCount();
 }
 
+function filterUserCards() {
+    var query = (document.getElementById('userSearchInput').value || '').trim().toLowerCase();
+    var visibleCount = 0;
+
+    document.querySelectorAll('#userCards .user-card').forEach(function (card) {
+        var haystack = (card.getAttribute('data-search') || '').toLowerCase();
+        var matchQuery = !query || haystack.indexOf(query) !== -1;
+        var matchFilter = currentUserFilter === 'all' || card.getAttribute('data-status') === currentUserFilter;
+        var show = matchQuery && matchFilter;
+        card.style.display = show ? '' : 'none';
+        if (show) visibleCount++;
+    });
+
+    var empty = document.getElementById('userEmptyMsg');
+    if (empty) empty.style.display = visibleCount ? 'none' : 'block';
+    updateBulkSelectedCount();
+}
+
+function setUserFilter(btn) {
+    document.querySelectorAll('#userFilters .user-filter').forEach(function (b) {
+        b.classList.remove('active');
+    });
+    btn.classList.add('active');
+    currentUserFilter = btn.getAttribute('data-filter');
+    filterUserCards();
+}
+
 function submitBulkAction(action, actionText) {
-    var checked = document.querySelectorAll('.bulk-user-checkbox:checked');
+    var checked = visibleCheckboxes().filter(function (cb) { return cb.checked; });
     if (checked.length === 0) {
         alert('Выберите хотя бы одного пользователя!');
         return;
@@ -398,17 +471,36 @@ function submitBulkAction(action, actionText) {
 
     form.submit();
 }
-</script>
 
-<script>
-    function togglePw(btn) {
-        const span = btn.previousElementSibling;
-        const plain = span.getAttribute('data-plain');
-        if (span.textContent === '••••••••') {
-            span.textContent = plain && plain.length ? plain : '(нет данных)';
-        } else {
-            span.textContent = '••••••••';
-        }
+function copyUserId(chip) {
+    var id = chip.getAttribute('data-copy');
+    function done() {
+        var icon = chip.querySelector('.user-id-copy');
+        if (!icon) return;
+        icon.textContent = '✓';
+        chip.classList.add('copied');
+        setTimeout(function () {
+            icon.textContent = '⧉';
+            chip.classList.remove('copied');
+        }, 1200);
     }
+    if (navigator.clipboard && navigator.clipboard.writeText) {
+        navigator.clipboard.writeText(id).then(done).catch(function () { fallbackCopy(id); done(); });
+    } else {
+        fallbackCopy(id);
+        done();
+    }
+}
+
+function fallbackCopy(text) {
+    var ta = document.createElement('textarea');
+    ta.value = text;
+    ta.style.position = 'fixed';
+    ta.style.opacity = '0';
+    document.body.appendChild(ta);
+    ta.select();
+    try { document.execCommand('copy'); } catch (e) {}
+    document.body.removeChild(ta);
+}
 </script>
 {% endblock %}
