@@ -48,7 +48,7 @@ app.config["SESSION_COOKIE_SECURE"] = True  # на Vercel всегда HTTPS
 
 # Версия статики для cache-busting: меняй при каждом изменении css/js,
 # чтобы браузеры с кэшем подхватили новую версию (ссылки вида style.css?v=20260917b).
-STATIC_VERSION = os.environ.get("STATIC_VERSION", "20260919a")
+STATIC_VERSION = os.environ.get("STATIC_VERSION", "20260919b")
 
 
 @app.context_processor
@@ -327,6 +327,61 @@ def config_images_list(config):
     return images
 
 
+_user_config_downloads_ready = False
+
+
+def ensure_user_config_downloads_table(db):
+    """
+    Создаёт таблицу выдачи доступа к скачиванию конфигов.
+    Нужна отдельно от полного init_db: на Vercel миграции по умолчанию пропускаются.
+    """
+    global _user_config_downloads_ready
+    if _user_config_downloads_ready:
+        return
+    is_postgres = bool(os.environ.get("DATABASE_URL"))
+    if is_postgres:
+        execute(
+            db,
+            """
+            CREATE TABLE IF NOT EXISTS user_config_downloads (
+                id SERIAL PRIMARY KEY,
+                user_id INTEGER NOT NULL,
+                config_id INTEGER NOT NULL,
+                granted_at TEXT,
+                UNIQUE(user_id, config_id)
+            );
+            """,
+        )
+    else:
+        execute(
+            db,
+            """
+            CREATE TABLE IF NOT EXISTS user_config_downloads (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                user_id INTEGER NOT NULL,
+                config_id INTEGER NOT NULL,
+                granted_at TEXT,
+                UNIQUE(user_id, config_id)
+            );
+            """,
+        )
+    _user_config_downloads_ready = True
+
+
+def user_can_download_config(user, config_id, db):
+    """Админ всегда может скачать; обычный игрок — только после выдачи доступа."""
+    if not user or not config_id:
+        return False
+    if user.get("is_admin"):
+        return True
+    grant = fetchone(
+        db,
+        "SELECT id FROM user_config_downloads WHERE user_id = %s AND config_id = %s",
+        (user["id"], config_id),
+    )
+    return bool(grant)
+
+
 def delete_image_from_github(image_url):
     """
     Удаляет файл иконки из репозитория GitHub по его raw-ссылке,
@@ -496,6 +551,18 @@ def init_db():
         execute(db, "ALTER TABLE users ADD COLUMN IF NOT EXISTS google_id VARCHAR(64) UNIQUE;")
         execute(db, "ALTER TABLE users ADD COLUMN IF NOT EXISTS email VARCHAR(255);")
         execute(db, "ALTER TABLE users ADD COLUMN IF NOT EXISTS avatar_url TEXT;")
+        execute(
+            db,
+            """
+            CREATE TABLE IF NOT EXISTS user_config_downloads (
+                id SERIAL PRIMARY KEY,
+                user_id INTEGER NOT NULL,
+                config_id INTEGER NOT NULL,
+                granted_at TEXT,
+                UNIQUE(user_id, config_id)
+            );
+            """,
+        )
         execute(
             db,
             """
@@ -1111,12 +1178,28 @@ def profile():
             sub_info = {"active": False, "text": "Ошибка даты", "days_left": 0}
 
     db = get_db()
-    all_configs = fetchall(db, "SELECT * FROM configs ORDER BY id DESC")
+    ensure_user_config_downloads_table(db)
+    all_configs = fetchall(db, "SELECT * FROM configs ORDER BY id DESC") or []
+
+    granted_ids = set()
+    if not user.get("is_admin"):
+        grant_rows = fetchall(
+            db,
+            "SELECT config_id FROM user_config_downloads WHERE user_id = %s",
+            (user["id"],),
+        ) or []
+        granted_ids = {row["config_id"] for row in grant_rows}
+
     db.close()
 
-    # Конфиги видны всем пользователям в разделе «Библиотека» профиля
+    # Конфиги видны всем; кнопка «Скачать» — только после выдачи доступа админом
     for c in all_configs:
         c["images"] = config_images_list(c)
+        has_file = bool(c.get("download_url"))
+        c["can_download"] = has_file and (bool(user.get("is_admin")) or c["id"] in granted_ids)
+        # Не светим прямую ссылку в HTML тем, у кого нет доступа
+        if not c["can_download"]:
+            c["download_url"] = None
 
     return render_template(
         "profile.html",
@@ -1203,6 +1286,7 @@ def admin_panel():
         return "Доступ запрещен", 403
 
     db = get_db()
+    ensure_user_config_downloads_table(db)
     all_users = fetchall(db, "SELECT * FROM users ORDER BY id DESC")
     all_keys = fetchall(db, "SELECT * FROM subscription_keys ORDER BY id DESC")
     all_achievements = fetchall(db, "SELECT * FROM achievements ORDER BY id DESC")
@@ -1223,6 +1307,18 @@ def admin_panel():
         ORDER BY ua.granted_at DESC
         """,
     )
+    all_config_grants = fetchall(
+        db,
+        """
+        SELECT ucd.id AS grant_id, ucd.granted_at,
+               u.username, u.id AS user_id,
+               c.name AS config_name, c.id AS config_id, c.price AS config_price
+        FROM user_config_downloads ucd
+        JOIN users u ON u.id = ucd.user_id
+        JOIN configs c ON c.id = ucd.config_id
+        ORDER BY ucd.granted_at DESC
+        """,
+    )
     db.close()
     return render_template(
         "admin.html",
@@ -1232,6 +1328,7 @@ def admin_panel():
         achievements=all_achievements,
         grants=all_grants,
         configs=all_configs,
+        config_grants=all_config_grants,
     )
 
 
@@ -1369,6 +1466,8 @@ def admin_bulk_action():
         for target_id in ids:
             if target_id == user.get("id"):
                 continue
+            ensure_user_config_downloads_table(db)
+            execute(db, "DELETE FROM user_config_downloads WHERE user_id = %s", (target_id,))
             execute(db, "DELETE FROM users WHERE id = %s", (target_id,))
         flash(f"Удалено пользователей: {len(ids)}!", "success")
 
@@ -1453,6 +1552,8 @@ def admin_action():
         if not target:
             flash("Ошибка: Пользователь не найден!", "error")
         else:
+            ensure_user_config_downloads_table(db)
+            execute(db, "DELETE FROM user_config_downloads WHERE user_id = %s", (target_id,))
             execute(db, "DELETE FROM users WHERE id = %s", (target_id,))
             flash(f"Пользователь {target['username']} удалён навсегда!", "success")
             if user.get("id") == target_id:
@@ -1613,6 +1714,8 @@ def admin_delete_config():
     if config_id:
         db = get_db()
         config = fetchone(db, "SELECT * FROM configs WHERE id = %s", (config_id,))
+        ensure_user_config_downloads_table(db)
+        execute(db, "DELETE FROM user_config_downloads WHERE config_id = %s", (config_id,))
         execute(db, "DELETE FROM configs WHERE id = %s", (config_id,))
         db.close()
 
@@ -1624,6 +1727,91 @@ def admin_delete_config():
         flash("Конфиг удалён!", "success")
 
     return redirect(url_for("admin_panel"))
+
+
+@app.route("/admin/configs/grant", methods=["POST"])
+def admin_grant_config():
+    user = current_user()
+    if not user or not user.get("is_admin"):
+        return "Доступ запрещен", 403
+
+    target_id = request.form.get("user_id")
+    config_id = request.form.get("config_id")
+
+    if not target_id or not config_id:
+        flash("Выберите игрока и конфиг!", "error")
+        return redirect(url_for("admin_panel"))
+
+    db = get_db()
+    ensure_user_config_downloads_table(db)
+    target_user = fetchone(db, "SELECT username FROM users WHERE id = %s", (target_id,))
+    config = fetchone(db, "SELECT name FROM configs WHERE id = %s", (config_id,))
+
+    if not target_user or not config:
+        db.close()
+        flash("Пользователь или конфиг не найдены!", "error")
+        return redirect(url_for("admin_panel"))
+
+    existing = fetchone(
+        db,
+        "SELECT id FROM user_config_downloads WHERE user_id = %s AND config_id = %s",
+        (target_id, config_id),
+    )
+    if existing:
+        db.close()
+        flash(f"У {target_user['username']} уже есть доступ к скачиванию «{config['name']}»!", "warning")
+        return redirect(url_for("admin_panel"))
+
+    execute(
+        db,
+        "INSERT INTO user_config_downloads (user_id, config_id, granted_at) VALUES (%s, %s, %s)",
+        (target_id, config_id, datetime.utcnow().isoformat()),
+    )
+    db.close()
+
+    flash(f"Доступ к скачиванию «{config['name']}» выдан игроку {target_user['username']}!", "success")
+    return redirect(url_for("admin_panel"))
+
+
+@app.route("/admin/configs/revoke", methods=["POST"])
+def admin_revoke_config():
+    user = current_user()
+    if not user or not user.get("is_admin"):
+        return "Доступ запрещен", 403
+
+    grant_id = request.form.get("grant_id")
+    if grant_id:
+        db = get_db()
+        ensure_user_config_downloads_table(db)
+        execute(db, "DELETE FROM user_config_downloads WHERE id = %s", (grant_id,))
+        db.close()
+        flash("Доступ к скачиванию конфига отозван!", "success")
+
+    return redirect(url_for("admin_panel"))
+
+
+@app.route("/configs/<int:config_id>/download")
+def download_config(config_id):
+    """Скачивание только если админ выдал доступ (админы — всегда)."""
+    user = current_user()
+    if not user:
+        return redirect(url_for("login"))
+
+    db = get_db()
+    ensure_user_config_downloads_table(db)
+    config = fetchone(db, "SELECT * FROM configs WHERE id = %s", (config_id,))
+    allowed = bool(config and config.get("download_url") and user_can_download_config(user, config_id, db))
+    db.close()
+
+    if not config or not config.get("download_url"):
+        flash("Конфиг не найден!", "error")
+        return redirect(url_for("profile"))
+
+    if not allowed:
+        flash("Нет доступа к скачиванию. Купите конфиг и дождитесь, пока администратор выдаст доступ.", "error")
+        return redirect(url_for("profile"))
+
+    return redirect(config["download_url"])
 
 
 # ==================================================================

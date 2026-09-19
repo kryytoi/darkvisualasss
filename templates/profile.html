@@ -244,10 +244,14 @@
                   <a href="{{ c.funpay_url }}" target="_blank" rel="noopener" class="cfg-btn cfg-btn-buy">
                     <i data-lucide="shopping-cart" class="w-4 h-4"></i> Купить на FunPay
                   </a>
-                  {% if c.download_url %}
-                  <a href="{{ c.download_url }}" target="_blank" rel="noopener" class="cfg-btn cfg-btn-dl" title="Ссылка для оплативших">
+                  {% if c.can_download %}
+                  <a href="{{ url_for('download_config', config_id=c.id) }}" class="cfg-btn cfg-btn-dl" title="Скачать конфиг">
                     <i data-lucide="download" class="w-4 h-4"></i> Скачать
                   </a>
+                  {% else %}
+                  <span class="cfg-btn cfg-btn-dl cfg-btn-locked" title="Доступ выдаст администратор после оплаты">
+                    <i data-lucide="lock" class="w-4 h-4"></i> Скачать
+                  </span>
                   {% endif %}
                 </div>
               </div>
