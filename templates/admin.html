@@ -210,7 +210,8 @@
     <div class="admin-panel">
         <h3>🎮 Конфиги ({{ configs|length }})</h3>
         <p class="admin-note">
-            Добавленные конфиги автоматически появляются у <b>всех игроков</b> в профиле → Библиотека → Конфиги.
+            Добавленные конфиги видны у <b>всех игроков</b> в профиле → Библиотека → Конфиги.
+            Кнопка «Скачать» активируется только после выдачи доступа в разделе ниже.
         </p>
 
         <h4>➕ Добавить конфиг</h4>
@@ -284,6 +285,67 @@
         </div>
         {% else %}
         <p class="admin-empty">Конфигов пока нет.</p>
+        {% endif %}
+    </div>
+
+    <!-- ===== Выдать доступ к скачиванию конфига ===== -->
+    <div class="admin-panel">
+        <h3>⬇ Доступ к скачиванию конфигов</h3>
+        <p class="admin-note" style="margin-top:0; margin-bottom:16px;">
+            После оплаты выдайте игроку доступ — тогда кнопка «Скачать» в его профиле станет активной.
+            Администраторы могут скачивать всегда.
+        </p>
+        <form action="{{ url_for('admin_grant_config') }}" method="POST" class="admin-row">
+            <select name="user_id" required class="admin-select">
+                <option value="" disabled selected>Выберите игрока...</option>
+                {% for u in users %}
+                    <option value="{{ u.id }}">{{ u.username }} (ID: {{ u.id }})</option>
+                {% endfor %}
+            </select>
+
+            <select name="config_id" required class="admin-select">
+                <option value="" disabled selected>Выберите конфиг...</option>
+                {% for c in configs %}
+                    <option value="{{ c.id }}">{{ c.name }}{% if c.price %} — {{ c.price }}{% endif %}</option>
+                {% endfor %}
+            </select>
+
+            <button type="submit" class="admin-btn admin-btn-success">Выдать доступ</button>
+        </form>
+
+        {% if config_grants %}
+        <h4>Выданные доступы ({{ config_grants|length }})</h4>
+        <div class="admin-table-wrap">
+            <table class="admin-table">
+                <thead>
+                    <tr>
+                        <th>Игрок</th>
+                        <th>Конфиг</th>
+                        <th>Цена</th>
+                        <th>Дата выдачи</th>
+                        <th>Действие</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for g in config_grants %}
+                    <tr>
+                        <td><strong>{{ g.username }}</strong></td>
+                        <td style="color:#a78bfa;">{{ g.config_name }}</td>
+                        <td>{{ g.config_price or '—' }}</td>
+                        <td><span class="mono">{{ (g.granted_at or '')[:16].replace('T', ' ') }}</span></td>
+                        <td>
+                            <form action="{{ url_for('admin_revoke_config') }}" method="POST">
+                                <input type="hidden" name="grant_id" value="{{ g.grant_id }}">
+                                <button type="submit" onclick="return confirm('Забрать доступ к «{{ g.config_name }}» у игрока {{ g.username }}?');" class="admin-btn admin-btn-danger xs">Забрать</button>
+                            </form>
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+        {% else %}
+        <p class="admin-empty">Пока никому не выдан доступ к скачиванию.</p>
         {% endif %}
     </div>
 

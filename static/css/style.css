@@ -1591,6 +1591,18 @@ body > footer { position:relative; z-index:1; }
   border: 1px solid rgba(16, 185, 129, 0.35);
 }
 .cfg-btn-dl:hover { box-shadow: 0 6px 18px rgba(16, 185, 129, 0.25); }
+.cfg-btn-locked,
+.cfg-btn-locked:hover {
+  color: #94a3b8;
+  background: rgba(255, 255, 255, 0.04);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  box-shadow: none;
+  filter: none;
+  transform: none;
+  cursor: not-allowed;
+  opacity: .7;
+  pointer-events: none;
+}
 
 /* --- Админка: форма добавления --- */
 .cfg-photo-row {
