@@ -206,6 +206,87 @@
         {% endif %}
     </div>
 
+    <!-- ===== Конфиги ===== -->
+    <div class="admin-panel">
+        <h3>🎮 Конфиги ({{ configs|length }})</h3>
+        <p class="admin-note">
+            Добавленные конфиги автоматически появляются у <b>всех игроков</b> в профиле → Библиотека → Конфиги.
+        </p>
+
+        <h4>➕ Добавить конфиг</h4>
+        <form action="{{ url_for('admin_create_config') }}" method="POST" enctype="multipart/form-data">
+            <div class="admin-row" style="margin-bottom:12px;">
+                <input type="text" name="name" placeholder="Название конфига *" required class="admin-input grow">
+                <input type="text" name="price" placeholder="Стоимость (напр., 149 ₽) *" required class="admin-input grow">
+            </div>
+            <div class="admin-row" style="margin-bottom:12px;">
+                <input type="url" name="funpay_url" placeholder="Ссылка на оплату через FunPay * (https://funpay.com/...)" required class="admin-input grow">
+                <input type="url" name="download_url" placeholder="Ссылка на скачивание (если оплачен) * (https://...)" required class="admin-input grow">
+            </div>
+            <textarea name="description" placeholder="Описание конфига * (что в него входит, для чего...)" required class="admin-textarea" style="width:100%; min-height:70px; resize:vertical; margin-bottom:12px;"></textarea>
+
+            <div class="cfg-photo-row">
+                <div class="cfg-photo-slot">
+                    <span class="cfg-photo-label">Фото 1 *</span>
+                    <input type="file" name="image1_file" accept="image/*" class="cfg-photo-file">
+                    <input type="url" name="image1_url" placeholder="или ссылка на фото (https://...)" class="admin-input" style="width:100%; margin-top:6px;">
+                </div>
+                <div class="cfg-photo-slot">
+                    <span class="cfg-photo-label">Фото 2</span>
+                    <input type="file" name="image2_file" accept="image/*" class="cfg-photo-file">
+                    <input type="url" name="image2_url" placeholder="или ссылка на фото (https://...)" class="admin-input" style="width:100%; margin-top:6px;">
+                </div>
+                <div class="cfg-photo-slot">
+                    <span class="cfg-photo-label">Фото 3</span>
+                    <input type="file" name="image3_file" accept="image/*" class="cfg-photo-file">
+                    <input type="url" name="image3_url" placeholder="или ссылка на фото (https://...)" class="admin-input" style="width:100%; margin-top:6px;">
+                </div>
+            </div>
+
+            <button type="submit" class="admin-btn admin-btn-primary" style="margin-top:14px;">➕ Добавить конфиг</button>
+        </form>
+
+        {% if configs %}
+        <h4>Существующие конфиги</h4>
+        <div class="cfg-admin-grid">
+            {% for c in configs %}
+            <div class="cfg-admin-card">
+                <div class="cfg-admin-thumbs">
+                    {% if c.images %}
+                        {% for img in c.images[:3] %}
+                            <img src="{{ img }}" alt="" loading="lazy" decoding="async">
+                        {% endfor %}
+                        {% for _ in range(3 - c.images|length) %}
+                            <span class="cfg-thumb-empty">🖼</span>
+                        {% endfor %}
+                    {% else %}
+                        <span class="cfg-thumb-empty">🖼</span>
+                    {% endif %}
+                </div>
+                <div class="cfg-admin-info">
+                    <div class="cfg-admin-title">
+                        <strong>{{ c.name }}</strong>
+                        <span class="cfg-price-badge">{{ c.price }}</span>
+                    </div>
+                    <div class="cfg-admin-desc">{{ c.description }}</div>
+                    <div class="cfg-admin-links">
+                        <a href="{{ c.funpay_url }}" target="_blank" rel="noopener">🛒 FunPay ↗</a>
+                        {% if c.download_url %}<a href="{{ c.download_url }}" target="_blank" rel="noopener">⬇ Скачать ↗</a>{% endif %}
+                    </div>
+                </div>
+                <form action="{{ url_for('admin_delete_config') }}" method="POST" class="cfg-admin-del">
+                    <input type="hidden" name="config_id" value="{{ c.id }}">
+                    <button type="submit" onclick="return confirm('Удалить конфиг «{{ c.name }}»? Он пропадёт из библиотеки у всех игроков.');"
+                            class="admin-btn admin-btn-danger xs">🗑</button>
+                </form>
+            </div>
+            {% endfor %}
+        </div>
+        {% else %}
+        <p class="admin-empty">Конфигов пока нет.</p>
+        {% endif %}
+    </div>
+
     <!-- ===== Управление пользователями ===== -->
     <div class="admin-panel spotlight-card">
         <div class="user-mgmt-head">

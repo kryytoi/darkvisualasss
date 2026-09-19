@@ -1393,3 +1393,322 @@ body > footer { position:relative; z-index:1; }
   transition: opacity .25s ease;
 }
 .user-list-collapsible.collapsed { display: none; }
+
+/* ==================================================================
+   КОНФИГИ (библиотека в профиле + админка)
+   ================================================================== */
+
+/* --- Сетка карточек в профиле --- */
+.cfg-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(270px, 1fr));
+  gap: 20px;
+}
+
+.cfg-card {
+  display: flex;
+  flex-direction: column;
+  background: rgba(255, 255, 255, 0.03);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 22px;
+  overflow: hidden;
+  transition: transform .25s ease, border-color .25s ease, box-shadow .3s ease;
+}
+.cfg-card:hover {
+  transform: translateY(-4px);
+  border-color: rgba(168, 85, 247, 0.45);
+  box-shadow: 0 12px 34px rgba(124, 58, 237, 0.22);
+}
+
+/* --- Галерея фото --- */
+.cfg-gallery { display: flex; flex-direction: column; }
+
+.cfg-main-img {
+  position: relative;
+  aspect-ratio: 16 / 10;
+  background: rgba(0, 0, 0, 0.45);
+  overflow: hidden;
+}
+.cfg-main-img img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
+  transition: transform .35s ease;
+}
+.cfg-card:hover .cfg-main-img img { transform: scale(1.04); }
+
+.cfg-img-empty {
+  width: 100%;
+  height: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 42px;
+  opacity: .35;
+}
+
+.cfg-nav {
+  position: absolute;
+  top: 50%;
+  transform: translateY(-50%);
+  width: 32px;
+  height: 32px;
+  border-radius: 50%;
+  border: 1px solid rgba(255, 255, 255, 0.25);
+  background: rgba(0, 0, 0, 0.55);
+  color: #fff;
+  font-size: 18px;
+  line-height: 1;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  opacity: 0;
+  transition: opacity .2s ease, background .2s ease;
+  padding: 0;
+}
+.cfg-card:hover .cfg-nav { opacity: 1; }
+.cfg-nav:hover { background: var(--purple); }
+.cfg-nav-prev { left: 8px; }
+.cfg-nav-next { right: 8px; }
+
+.cfg-dots {
+  position: absolute;
+  bottom: 8px;
+  left: 50%;
+  transform: translateX(-50%);
+  display: flex;
+  gap: 5px;
+}
+.cfg-dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: rgba(255, 255, 255, 0.35);
+  transition: background .2s ease, transform .2s ease;
+}
+.cfg-dot.active {
+  background: var(--purple-light);
+  transform: scale(1.25);
+  box-shadow: 0 0 8px rgba(168, 85, 247, 0.8);
+}
+
+.cfg-thumbs {
+  display: flex;
+  gap: 6px;
+  padding: 6px;
+  background: rgba(0, 0, 0, 0.3);
+}
+.cfg-thumb {
+  flex: 1;
+  aspect-ratio: 16 / 10;
+  padding: 0;
+  border: 2px solid transparent;
+  border-radius: 10px;
+  overflow: hidden;
+  cursor: pointer;
+  background: rgba(0, 0, 0, 0.4);
+  opacity: .55;
+  transition: opacity .2s ease, border-color .2s ease;
+}
+.cfg-thumb img { width: 100%; height: 100%; object-fit: cover; display: block; }
+.cfg-thumb:hover { opacity: .85; }
+.cfg-thumb.active {
+  opacity: 1;
+  border-color: var(--purple-light);
+  box-shadow: 0 0 10px rgba(168, 85, 247, 0.45);
+}
+
+/* --- Контент карточки --- */
+.cfg-body {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding: 16px;
+  flex: 1;
+}
+.cfg-title-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+}
+.cfg-name {
+  margin: 0;
+  font-size: 17px;
+  font-weight: 800;
+  color: #fff;
+}
+.cfg-price {
+  flex-shrink: 0;
+  padding: 4px 12px;
+  border-radius: 999px;
+  font-size: 13px;
+  font-weight: 800;
+  color: #fff;
+  background: linear-gradient(135deg, var(--purple-light), var(--purple));
+  box-shadow: 0 4px 14px rgba(124, 58, 237, 0.4);
+  white-space: nowrap;
+}
+.cfg-desc {
+  margin: 0;
+  font-size: 13px;
+  line-height: 1.55;
+  color: var(--text-dim);
+  flex: 1;
+}
+
+.cfg-actions {
+  display: flex;
+  gap: 8px;
+  margin-top: 4px;
+}
+.cfg-btn {
+  flex: 1;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  padding: 10px 12px;
+  border-radius: 14px;
+  font-size: 13px;
+  font-weight: 700;
+  text-decoration: none;
+  text-align: center;
+  transition: transform .2s ease, filter .2s ease, box-shadow .25s ease;
+  white-space: nowrap;
+}
+.cfg-btn:hover { transform: translateY(-2px); filter: brightness(1.12); }
+.cfg-btn-buy {
+  color: #fff;
+  background: linear-gradient(135deg, var(--purple-light), var(--purple));
+  box-shadow: 0 6px 18px rgba(124, 58, 237, 0.35);
+}
+.cfg-btn-dl {
+  color: #d1fae5;
+  background: rgba(16, 185, 129, 0.12);
+  border: 1px solid rgba(16, 185, 129, 0.35);
+}
+.cfg-btn-dl:hover { box-shadow: 0 6px 18px rgba(16, 185, 129, 0.25); }
+
+/* --- Админка: форма добавления --- */
+.cfg-photo-row {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+  gap: 12px;
+}
+.cfg-photo-slot {
+  padding: 12px;
+  border-radius: 14px;
+  background: rgba(255, 255, 255, 0.03);
+  border: 1px dashed rgba(168, 85, 247, 0.3);
+}
+.cfg-photo-label {
+  display: block;
+  font-size: 12px;
+  font-weight: 800;
+  color: var(--purple-light);
+  margin-bottom: 8px;
+  text-transform: uppercase;
+  letter-spacing: .5px;
+}
+.cfg-photo-file {
+  width: 100%;
+  font-size: 12px;
+  color: #cbd5e1;
+}
+.cfg-photo-file::file-selector-button {
+  margin-right: 10px;
+  padding: 6px 12px;
+  border: none;
+  border-radius: 8px;
+  background: linear-gradient(135deg, var(--purple-light), var(--purple));
+  color: #fff;
+  font-weight: 700;
+  font-size: 12px;
+  cursor: pointer;
+}
+
+/* --- Админка: список конфигов --- */
+.cfg-admin-grid {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  margin-top: 10px;
+}
+.cfg-admin-card {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  padding: 12px 14px;
+  border-radius: 16px;
+  background: rgba(255, 255, 255, 0.03);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+}
+.cfg-admin-thumbs {
+  display: flex;
+  gap: 6px;
+  flex-shrink: 0;
+}
+.cfg-admin-thumbs img {
+  width: 62px;
+  height: 44px;
+  object-fit: cover;
+  border-radius: 10px;
+  border: 1px solid rgba(255, 255, 255, 0.12);
+}
+.cfg-thumb-empty {
+  width: 62px;
+  height: 44px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 10px;
+  background: rgba(255, 255, 255, 0.05);
+  border: 1px dashed rgba(255, 255, 255, 0.15);
+  opacity: .5;
+  font-size: 16px;
+}
+.cfg-admin-info { flex: 1; min-width: 0; }
+.cfg-admin-title {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+  margin-bottom: 4px;
+}
+.cfg-price-badge {
+  padding: 2px 10px;
+  border-radius: 999px;
+  font-size: 12px;
+  font-weight: 800;
+  background: linear-gradient(135deg, var(--purple-light), var(--purple));
+}
+.cfg-admin-desc {
+  font-size: 12.5px;
+  color: var(--text-dim);
+  line-height: 1.5;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+.cfg-admin-links {
+  display: flex;
+  gap: 14px;
+  margin-top: 6px;
+}
+.cfg-admin-links a {
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--purple-light);
+  text-decoration: none;
+}
+.cfg-admin-links a:hover { text-decoration: underline; }
+.cfg-admin-del { flex-shrink: 0; }
+
+@media (max-width: 640px) {
+  .cfg-admin-card { flex-wrap: wrap; }
+  .cfg-actions { flex-direction: column; }
+}

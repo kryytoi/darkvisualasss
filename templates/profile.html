@@ -200,7 +200,63 @@
       </div>
 
       <div class="lib-panel hidden" id="libConfigs">
-        <p class="text-center text-neutral-400 py-10">Скоро...</p>
+        {% if configs %}
+          <div class="cfg-grid">
+            {% for c in configs %}
+            <div class="cfg-card">
+              <div class="cfg-gallery" data-images='{{ c.images|tojson }}'>
+                <div class="cfg-main-img">
+                  {% if c.images %}
+                    <img src="{{ c.images[0] }}" alt="{{ c.name }}" loading="lazy" decoding="async">
+                  {% else %}
+                    <div class="cfg-img-empty">🖼</div>
+                  {% endif %}
+
+                  {% if c.images|length > 1 %}
+                    <button type="button" class="cfg-nav cfg-nav-prev" onclick="cfgSlide(this, -1)" aria-label="Предыдущее фото">‹</button>
+                    <button type="button" class="cfg-nav cfg-nav-next" onclick="cfgSlide(this, 1)" aria-label="Следующее фото">›</button>
+                    <div class="cfg-dots">
+                      {% for _ in c.images %}
+                        <span class="cfg-dot{% if loop.first %} active{% endif %}"></span>
+                      {% endfor %}
+                    </div>
+                  {% endif %}
+                </div>
+
+                {% if c.images|length > 1 %}
+                <div class="cfg-thumbs">
+                  {% for img in c.images %}
+                    <button type="button" class="cfg-thumb{% if loop.first %} active{% endif %}" onclick="cfgPick(this, {{ loop.index0 }})">
+                      <img src="{{ img }}" alt="" loading="lazy" decoding="async">
+                    </button>
+                  {% endfor %}
+                </div>
+                {% endif %}
+              </div>
+
+              <div class="cfg-body">
+                <div class="cfg-title-row">
+                  <h4 class="cfg-name">{{ c.name }}</h4>
+                  <span class="cfg-price">{{ c.price }}</span>
+                </div>
+                <p class="cfg-desc">{{ c.description }}</p>
+                <div class="cfg-actions">
+                  <a href="{{ c.funpay_url }}" target="_blank" rel="noopener" class="cfg-btn cfg-btn-buy">
+                    <i data-lucide="shopping-cart" class="w-4 h-4"></i> Купить на FunPay
+                  </a>
+                  {% if c.download_url %}
+                  <a href="{{ c.download_url }}" target="_blank" rel="noopener" class="cfg-btn cfg-btn-dl" title="Ссылка для оплативших">
+                    <i data-lucide="download" class="w-4 h-4"></i> Скачать
+                  </a>
+                  {% endif %}
+                </div>
+              </div>
+            </div>
+            {% endfor %}
+          </div>
+        {% else %}
+          <p class="text-center text-neutral-400 py-10">Конфигов пока нет — загляните позже!</p>
+        {% endif %}
       </div>
     </div>
 
@@ -350,6 +406,38 @@ function copyProfileId(el) {
     });
   });
 })();
+
+// ===== Мини-галерея фото конфигов =====
+function cfgShow(gallery, idx) {
+  if (!gallery) return;
+  var images;
+  try { images = JSON.parse(gallery.getAttribute('data-images') || '[]'); } catch (e) { return; }
+  if (!images.length) return;
+
+  var total = images.length;
+  idx = ((idx % total) + total) % total;
+
+  var mainImg = gallery.querySelector('.cfg-main-img img');
+  if (mainImg) mainImg.src = images[idx];
+
+  gallery.setAttribute('data-index', String(idx));
+  gallery.querySelectorAll('.cfg-thumb').forEach(function (t, i) { t.classList.toggle('active', i === idx); });
+  gallery.querySelectorAll('.cfg-dot').forEach(function (d, i) { d.classList.toggle('active', i === idx); });
+}
+
+function cfgPick(thumb, idx) {
+  cfgShow(thumb.closest('.cfg-gallery'), idx);
+}
+
+function cfgSlide(btn, dir) {
+  var gallery = btn.closest('.cfg-gallery');
+  var images;
+  try { images = JSON.parse(gallery.getAttribute('data-images') || '[]'); } catch (e) { return; }
+  if (images.length < 2) return;
+
+  var current = parseInt(gallery.getAttribute('data-index') || '0', 10);
+  cfgShow(gallery, current + dir);
+}
 </script>
 
 {% endblock %}
