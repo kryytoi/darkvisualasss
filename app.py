@@ -48,7 +48,7 @@ app.config["SESSION_COOKIE_SECURE"] = True  # на Vercel всегда HTTPS
 
 # Версия статики для cache-busting: меняй при каждом изменении css/js,
 # чтобы браузеры с кэшем подхватили новую версию (ссылки вида style.css?v=20260917b).
-STATIC_VERSION = os.environ.get("STATIC_VERSION", "20260917b")
+STATIC_VERSION = os.environ.get("STATIC_VERSION", "20260919a")
 
 
 @app.context_processor
@@ -218,11 +218,11 @@ def allowed_icon_file(filename):
     return "." in filename and filename.rsplit(".", 1)[1].lower() in ALLOWED_ICON_EXTENSIONS
 
 
-def upload_achievement_icon_to_github(file_storage):
+def upload_image_to_github(file_storage):
     """
-    Загружает иконку достижения в репозиторий сайта на GitHub через Contents API
-    (в папку GITHUB_ACHIEVEMENTS_PATH, отдельную от остальных файлов сайта),
-    и возвращает прямую ссылку на файл (raw.githubusercontent.com) для поля image_url.
+    Загружает картинку (иконка достижения или фото конфига) в репозиторий сайта
+    на GitHub через Contents API (в папку GITHUB_ACHIEVEMENTS_PATH, отдельную от
+    остальных файлов сайта), и возвращает прямую ссылку на файл для показа на сайте.
 
     Возвращает (url, error_message). Если ошибка — url будет None.
     """
@@ -232,9 +232,6 @@ def upload_achievement_icon_to_github(file_storage):
     if not allowed_icon_file(file_storage.filename):
         return None, "Недопустимый формат файла! Разрешены: png, jpg, jpeg, gif, webp."
 
-    if not GITHUB_TOKEN:
-        return None, "Загрузка иконок не настроена на сервере (нет GITHUB_TOKEN)."
-
     original_name = secure_filename(file_storage.filename)
     ext = original_name.rsplit(".", 1)[1].lower()
     unique_name = f"{uuid.uuid4().hex}.{ext}"
@@ -242,7 +239,12 @@ def upload_achievement_icon_to_github(file_storage):
 
     file_bytes = file_storage.read()
     if not file_bytes:
-        return None, "Файл иконки пустой!"
+        return None, "Файл пустой!"
+
+    # Локальная разработка без GITHUB_TOKEN: сохраняем файл в api/img/ на диск,
+    # чтобы добавление картинок работало и вне продакшена.
+    if not GITHUB_TOKEN:
+        return _save_image_locally(unique_name, file_bytes)
 
     content_b64 = base64.b64encode(file_bytes).decode("ascii")
 
@@ -259,8 +261,10 @@ def upload_achievement_icon_to_github(file_storage):
 
     try:
         resp = requests.put(api_url, headers=headers, json=payload, timeout=20)
-    except requests.RequestException as e:
-        return None, f"Не удалось связаться с GitHub: {e}"
+    except requests.RequestException:
+        # GitHub недоступен (нет сети и т.п.) — пробуем сохранить локально,
+        # чтобы загрузка картинок не падала целиком.
+        return _save_image_locally(unique_name, file_bytes)
 
     if resp.status_code not in (200, 201):
         return None, f"GitHub вернул ошибку ({resp.status_code}): {resp.text[:200]}"
@@ -268,6 +272,19 @@ def upload_achievement_icon_to_github(file_storage):
     # Отдаём относительную ссылку на наш же домен: файл лежит в репозитории и
     # раздаётся статикой с бесконечным кэшем (имя файла уникально).
     return f"{ACHIEVEMENTS_PUBLIC_PREFIX}{unique_name}", None
+
+
+def _save_image_locally(unique_name, file_bytes):
+    """Фолбэк-сохранение картинки в api/img/ на диск (для локальной разработки)."""
+    try:
+        base = os.path.dirname(os.path.abspath(__file__))
+        local_dir = os.path.join(base, GITHUB_ACHIEVEMENTS_PATH)
+        os.makedirs(local_dir, exist_ok=True)
+        with open(os.path.join(local_dir, unique_name), "wb") as f:
+            f.write(file_bytes)
+        return f"{ACHIEVEMENTS_PUBLIC_PREFIX}{unique_name}", None
+    except OSError as e:
+        return None, f"Не удалось сохранить файл: {e}"
 
 
 def normalize_achievement_image_url(image_url):
@@ -300,7 +317,17 @@ def normalize_achievement_image_url(image_url):
     return image_url
 
 
-def delete_achievement_icon_from_github(image_url):
+def config_images_list(config):
+    """Список непустых фото конфига (до 3 шт.) с нормализованными ссылками."""
+    images = []
+    for i in (1, 2, 3):
+        url = normalize_achievement_image_url(config.get(f"image{i}_url"))
+        if url:
+            images.append(url)
+    return images
+
+
+def delete_image_from_github(image_url):
     """
     Удаляет файл иконки из репозитория GitHub по его raw-ссылке,
     если она указывает на нашу папку GITHUB_ACHIEVEMENTS_PATH.
@@ -510,6 +537,23 @@ def init_db():
             );
             """,
         )
+        execute(
+            db,
+            """
+            CREATE TABLE IF NOT EXISTS configs (
+                id SERIAL PRIMARY KEY,
+                name VARCHAR(150) NOT NULL,
+                price VARCHAR(50),
+                description TEXT,
+                funpay_url TEXT,
+                download_url TEXT,
+                image1_url TEXT,
+                image2_url TEXT,
+                image3_url TEXT,
+                created_at TEXT
+            );
+            """,
+        )
     else:
         execute(
             db,
@@ -578,6 +622,23 @@ def init_db():
                 achievement_id INTEGER NOT NULL,
                 granted_at TEXT,
                 UNIQUE(user_id, achievement_id)
+            );
+            """,
+        )
+        execute(
+            db,
+            """
+            CREATE TABLE IF NOT EXISTS configs (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                name TEXT NOT NULL,
+                price TEXT,
+                description TEXT,
+                funpay_url TEXT,
+                download_url TEXT,
+                image1_url TEXT,
+                image2_url TEXT,
+                image3_url TEXT,
+                created_at TEXT
             );
             """,
         )
@@ -1049,7 +1110,21 @@ def profile():
         except ValueError:
             sub_info = {"active": False, "text": "Ошибка даты", "days_left": 0}
 
-    return render_template("profile.html", user=user, sub=sub_info, launcher_url=LAUNCHER_URL)
+    db = get_db()
+    all_configs = fetchall(db, "SELECT * FROM configs ORDER BY id DESC")
+    db.close()
+
+    # Конфиги видны всем пользователям в разделе «Библиотека» профиля
+    for c in all_configs:
+        c["images"] = config_images_list(c)
+
+    return render_template(
+        "profile.html",
+        user=user,
+        sub=sub_info,
+        launcher_url=LAUNCHER_URL,
+        configs=all_configs,
+    )
 
 
 @app.route("/profile/change_password", methods=["POST"])
@@ -1133,6 +1208,9 @@ def admin_panel():
     all_achievements = fetchall(db, "SELECT * FROM achievements ORDER BY id DESC")
     for a in all_achievements:
         a["image_url"] = normalize_achievement_image_url(a.get("image_url"))
+    all_configs = fetchall(db, "SELECT * FROM configs ORDER BY id DESC")
+    for c in all_configs:
+        c["images"] = config_images_list(c)
     all_grants = fetchall(
         db,
         """
@@ -1153,6 +1231,7 @@ def admin_panel():
         current_user=user,
         achievements=all_achievements,
         grants=all_grants,
+        configs=all_configs,
     )
 
 
@@ -1221,7 +1300,7 @@ def admin_create_achievement():
 
     # Если загружен файл — он приоритетнее ссылки, грузим его на GitHub
     if icon_file and icon_file.filename:
-        uploaded_url, upload_error = upload_achievement_icon_to_github(icon_file)
+        uploaded_url, upload_error = upload_image_to_github(icon_file)
         if upload_error:
             flash(upload_error, "error")
             return redirect(url_for("admin_panel"))
@@ -1444,6 +1523,110 @@ def admin_delete_key():
 
 
 # ==================================================================
+#  КОНФИГИ (Configs) — библиотека в профиле
+# ==================================================================
+
+@app.route("/admin/configs/create", methods=["POST"])
+def admin_create_config():
+    user = current_user()
+    if not user or not user.get("is_admin"):
+        return "Доступ запрещен", 403
+
+    name = request.form.get("name", "").strip()
+    price = request.form.get("price", "").strip()
+    description = request.form.get("description", "").strip()
+    funpay_url = request.form.get("funpay_url", "").strip()
+    download_url = request.form.get("download_url", "").strip()
+
+    if not name:
+        flash("Название конфига не может быть пустым!", "error")
+        return redirect(url_for("admin_panel"))
+    if not price:
+        flash("Укажите стоимость конфига!", "error")
+        return redirect(url_for("admin_panel"))
+    if not funpay_url or not funpay_url.startswith(("http://", "https://")):
+        flash("Укажите корректную ссылку на оплату через FunPay (https://...)", "error")
+        return redirect(url_for("admin_panel"))
+    if not download_url or not download_url.startswith(("http://", "https://")):
+        flash("Укажите корректную ссылку на скачивание конфига (https://...)", "error")
+        return redirect(url_for("admin_panel"))
+    if not description:
+        flash("Добавьте описание конфига!", "error")
+        return redirect(url_for("admin_panel"))
+
+    # 3 фото конфига: загруженный файл приоритетнее ссылки (как у иконок достижений)
+    images = []
+    for i in (1, 2, 3):
+        img_file = request.files.get(f"image{i}_file")
+        img_url = request.form.get(f"image{i}_url", "").strip()
+        url = None
+        if img_file and img_file.filename:
+            uploaded_url, upload_error = upload_image_to_github(img_file)
+            if upload_error:
+                flash(upload_error, "error")
+                return redirect(url_for("admin_panel"))
+            url = uploaded_url
+        elif img_url:
+            if not img_url.startswith(("http://", "https://", "/")):
+                flash(f"Ссылка на фото {i} должна начинаться с http:// или https://", "error")
+                return redirect(url_for("admin_panel"))
+            url = img_url
+        images.append(url)
+
+    if not any(images):
+        flash("Добавьте хотя бы одну фотографию конфига!", "error")
+        return redirect(url_for("admin_panel"))
+
+    db = get_db()
+    execute(
+        db,
+        """
+        INSERT INTO configs
+            (name, price, description, funpay_url, download_url, image1_url, image2_url, image3_url, created_at)
+        VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s)
+        """,
+        (
+            name,
+            price,
+            description,
+            funpay_url,
+            download_url,
+            images[0],
+            images[1],
+            images[2],
+            datetime.utcnow().isoformat(),
+        ),
+    )
+    db.close()
+
+    flash(f"Конфиг «{name}» добавлен! Он уже виден всем игрокам в профиле → Библиотека → Конфиги.", "success")
+    return redirect(url_for("admin_panel"))
+
+
+@app.route("/admin/configs/delete", methods=["POST"])
+def admin_delete_config():
+    user = current_user()
+    if not user or not user.get("is_admin"):
+        return "Доступ запрещен", 403
+
+    config_id = request.form.get("config_id")
+    if config_id:
+        db = get_db()
+        config = fetchone(db, "SELECT * FROM configs WHERE id = %s", (config_id,))
+        execute(db, "DELETE FROM configs WHERE id = %s", (config_id,))
+        db.close()
+
+        # Подчищаем фото конфига из репозитория (тихо, ошибки не критичны)
+        if config:
+            for i in (1, 2, 3):
+                delete_image_from_github(config.get(f"image{i}_url"))
+
+        flash("Конфиг удалён!", "success")
+
+    return redirect(url_for("admin_panel"))
+
+
+# ==================================================================
 #  ДОСТИЖЕНИЯ (Achievements)
 # ==================================================================
 
@@ -1526,7 +1709,7 @@ def admin_delete_achievement():
         db.close()
 
         if achievement:
-            delete_achievement_icon_from_github(achievement.get("image_url"))
+            delete_image_from_github(achievement.get("image_url"))
 
         flash("Достижение удалено!", "success")
 
