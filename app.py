@@ -382,6 +382,81 @@ def user_can_download_config(user, config_id, db):
     return bool(grant)
 
 
+# ==================================================================
+#  ПРОМОКОДЫ (Promo codes) — скидка при покупке
+# ==================================================================
+
+_promo_codes_ready = False
+
+
+def ensure_promo_codes_table(db):
+    """
+    Создаёт таблицу промокодов.
+    Нужна отдельно от полного init_db: на Vercel миграции по умолчанию пропускаются.
+    """
+    global _promo_codes_ready
+    if _promo_codes_ready:
+        return
+    is_postgres = bool(os.environ.get("DATABASE_URL"))
+    if is_postgres:
+        execute(
+            db,
+            """
+            CREATE TABLE IF NOT EXISTS promo_codes (
+                id SERIAL PRIMARY KEY,
+                code VARCHAR(64) UNIQUE NOT NULL,
+                discount_percent INTEGER NOT NULL,
+                funpay_url TEXT,
+                is_active BOOLEAN DEFAULT TRUE,
+                uses_count INTEGER DEFAULT 0,
+                created_at TEXT
+            );
+            """,
+        )
+    else:
+        execute(
+            db,
+            """
+            CREATE TABLE IF NOT EXISTS promo_codes (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                code TEXT UNIQUE NOT NULL,
+                discount_percent INTEGER NOT NULL,
+                funpay_url TEXT,
+                is_active BOOLEAN DEFAULT 1,
+                uses_count INTEGER DEFAULT 0,
+                created_at TEXT
+            );
+            """,
+        )
+    _promo_codes_ready = True
+
+
+def normalize_promo_code(raw):
+    """Промокоды регистронезависимы: храним и ищем в верхнем регистре."""
+    return str(raw or "").strip().upper()[:64]
+
+
+def parse_price_rub(price_str):
+    """'149 ₽' -> 149. Нечисловые символы (в т.ч. неразрывный пробел) отбрасываются."""
+    digits = "".join(ch for ch in str(price_str or "") if ch.isdigit())
+    return int(digits) if digits else 0
+
+
+def format_price_rub(amount):
+    return f"{int(amount)} ₽"
+
+
+def discounted_price(price_str, discount_percent):
+    """Считает новую цену после скидки промокода: '149 ₽', 10 -> '134 ₽'."""
+    base = parse_price_rub(price_str)
+    try:
+        percent = int(discount_percent)
+    except (TypeError, ValueError):
+        percent = 0
+    percent = max(0, min(100, percent))
+    return format_price_rub(round(base * (100 - percent) / 100))
+
+
 def delete_image_from_github(image_url):
     """
     Удаляет файл иконки из репозитория GitHub по его raw-ссылке,
@@ -621,6 +696,20 @@ def init_db():
             );
             """,
         )
+        execute(
+            db,
+            """
+            CREATE TABLE IF NOT EXISTS promo_codes (
+                id SERIAL PRIMARY KEY,
+                code VARCHAR(64) UNIQUE NOT NULL,
+                discount_percent INTEGER NOT NULL,
+                funpay_url TEXT,
+                is_active BOOLEAN DEFAULT TRUE,
+                uses_count INTEGER DEFAULT 0,
+                created_at TEXT
+            );
+            """,
+        )
     else:
         execute(
             db,
@@ -705,6 +794,20 @@ def init_db():
                 image1_url TEXT,
                 image2_url TEXT,
                 image3_url TEXT,
+                created_at TEXT
+            );
+            """,
+        )
+        execute(
+            db,
+            """
+            CREATE TABLE IF NOT EXISTS promo_codes (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                code TEXT UNIQUE NOT NULL,
+                discount_percent INTEGER NOT NULL,
+                funpay_url TEXT,
+                is_active BOOLEAN DEFAULT 1,
+                uses_count INTEGER DEFAULT 0,
                 created_at TEXT
             );
             """,
@@ -977,6 +1080,8 @@ def buy(plan_key):
         return redirect(url_for("index"))
 
     funpay_url = FUNPAY_LINKS.get(plan_key)
+    # Можно прийти сразу со ссылкой вида /buy/1_month?promo=SALE10 — промокод подставится сам.
+    promo_prefill = normalize_promo_code(request.args.get("promo", ""))
 
     return render_template(
         "buy.html",
@@ -985,6 +1090,7 @@ def buy(plan_key):
         plan_key=plan_key,
         telegram_url=TELEGRAM_ADMIN_URL,
         funpay_url=funpay_url,
+        promo_prefill=promo_prefill,
     )
 
 
@@ -1295,6 +1401,8 @@ def admin_panel():
     all_configs = fetchall(db, "SELECT * FROM configs ORDER BY id DESC")
     for c in all_configs:
         c["images"] = config_images_list(c)
+    ensure_promo_codes_table(db)
+    all_promos = fetchall(db, "SELECT * FROM promo_codes ORDER BY id DESC")
     all_grants = fetchall(
         db,
         """
@@ -1329,6 +1437,7 @@ def admin_panel():
         grants=all_grants,
         configs=all_configs,
         config_grants=all_config_grants,
+        promos=all_promos,
     )
 
 
@@ -1621,6 +1730,149 @@ def admin_delete_key():
         flash("Ключ удалён!", "success")
 
     return redirect(url_for("admin_panel"))
+
+
+# ==================================================================
+#  ПРОМОКОДЫ (Promo codes) — скидка при покупке
+# ==================================================================
+
+@app.route("/admin/promo/create", methods=["POST"])
+def admin_create_promo():
+    user = current_user()
+    if not user or not user.get("is_admin"):
+        return "Доступ запрещен", 403
+
+    funpay_url = request.form.get("funpay_url", "").strip()
+    code = normalize_promo_code(request.form.get("code", ""))
+    raw_percent = request.form.get("discount_percent", "").strip()
+
+    if not code:
+        flash("Укажите название промокода!", "error")
+        return redirect(url_for("admin_panel"))
+
+    if not funpay_url.startswith(("http://", "https://")):
+        flash("Укажите ссылку на FunPay (https://...) для покупки с этим промокодом!", "error")
+        return redirect(url_for("admin_panel"))
+
+    try:
+        percent = int(raw_percent)
+    except (TypeError, ValueError):
+        percent = 0
+    if not (1 <= percent <= 100):
+        flash("Скидка промокода — число от 1 до 100 процентов!", "error")
+        return redirect(url_for("admin_panel"))
+
+    db = get_db()
+    ensure_promo_codes_table(db)
+    if fetchone(db, "SELECT id FROM promo_codes WHERE code = %s", (code,)):
+        db.close()
+        flash(f"Промокод «{code}» уже существует!", "error")
+        return redirect(url_for("admin_panel"))
+
+    execute(
+        db,
+        """
+        INSERT INTO promo_codes (code, discount_percent, funpay_url, is_active, uses_count, created_at)
+        VALUES (%s, %s, %s, %s, %s, %s)
+        """,
+        (code, percent, funpay_url, True, 0, datetime.utcnow().isoformat()),
+    )
+    db.close()
+
+    flash(f"Промокод «{code}» создан: скидка −{percent}%!", "success")
+    return redirect(url_for("admin_panel"))
+
+
+@app.route("/admin/promo/toggle", methods=["POST"])
+def admin_toggle_promo():
+    user = current_user()
+    if not user or not user.get("is_admin"):
+        return "Доступ запрещен", 403
+
+    promo_id = request.form.get("promo_id")
+    if promo_id:
+        db = get_db()
+        ensure_promo_codes_table(db)
+        execute(db, "UPDATE promo_codes SET is_active = NOT is_active WHERE id = %s", (promo_id,))
+        db.close()
+        flash("Статус промокода изменён!", "success")
+
+    return redirect(url_for("admin_panel"))
+
+
+@app.route("/admin/promo/delete", methods=["POST"])
+def admin_delete_promo():
+    user = current_user()
+    if not user or not user.get("is_admin"):
+        return "Доступ запрещен", 403
+
+    promo_id = request.form.get("promo_id")
+    if promo_id:
+        db = get_db()
+        ensure_promo_codes_table(db)
+        execute(db, "DELETE FROM promo_codes WHERE id = %s", (promo_id,))
+        db.close()
+        flash("Промокод удалён!", "success")
+
+    return redirect(url_for("admin_panel"))
+
+
+@app.route("/api/promo/apply", methods=["POST"])
+def api_apply_promo():
+    """
+    Активация промокода при покупке: проверяет код, считает новую цену
+    со скидкой и возвращает ссылку на FunPay, привязанную к промокоду.
+    """
+    user = current_user()
+    if not user:
+        return jsonify({"ok": False, "error": "Сначала войдите в аккаунт, чтобы применить промокод."}), 401
+
+    data = request.get_json(silent=True) or {}
+    code = normalize_promo_code(data.get("code") or request.form.get("code", ""))
+    plan_key = str(data.get("plan_key") or request.form.get("plan_key") or "").strip()
+
+    if not code:
+        return jsonify({"ok": False, "error": "Введите промокод."}), 400
+
+    db = get_db()
+    ensure_promo_codes_table(db)
+    promo = fetchone(db, "SELECT * FROM promo_codes WHERE code = %s", (code,))
+    if not promo:
+        db.close()
+        return jsonify({"ok": False, "error": "Такого промокода не существует."}), 404
+
+    if not promo.get("is_active"):
+        db.close()
+        return jsonify({"ok": False, "error": "Промокод деактивирован."}), 400
+
+    try:
+        percent = int(promo.get("discount_percent") or 0)
+    except (TypeError, ValueError):
+        percent = 0
+
+    result = {
+        "ok": True,
+        "code": promo["code"],
+        "discount_percent": percent,
+    }
+
+    plan = PLANS.get(plan_key)
+    if plan:
+        result["plan_key"] = plan_key
+        result["original_price"] = plan["price"]
+        result["new_price"] = discounted_price(plan["price"], percent)
+
+    # Ссылка на FunPay именно этого промокода; если её нет — обычная ссылка тарифа.
+    funpay_url = (promo.get("funpay_url") or "").strip()
+    if not funpay_url:
+        funpay_url = FUNPAY_LINKS.get(plan_key) or ""
+    result["funpay_url"] = funpay_url or None
+
+    # Промокод активирован при покупке — считаем применение.
+    execute(db, "UPDATE promo_codes SET uses_count = uses_count + 1 WHERE id = %s", (promo["id"],))
+    db.close()
+
+    return jsonify(result)
 
 
 # ==================================================================

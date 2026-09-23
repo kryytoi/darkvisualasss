@@ -14,14 +14,38 @@
 
     <div class="flex-1 p-8 md:p-10 text-center md:text-left">
       <h2 class="text-3xl font-black mb-2">{{ plan.name }}</h2>
-      <div class="text-2xl font-bold text-purple-400 mb-6">
+      <div class="text-2xl font-bold text-purple-400 mb-4">
         {% if plan.features %}{{ plan.features[0] }}{% endif %}
       </div>
 
-      <p class="text-neutral-400 leading-relaxed mb-8">
-        Переведи <span class="text-white font-semibold">{{ plan.price }}</span> удобным способом и напиши администратору свой логин
+      <!-- Цена: меняется при активации промокода -->
+      <div class="mb-4 flex items-baseline gap-3 justify-center md:justify-start">
+        <span id="promoPriceOld" class="hidden text-lg text-neutral-500 line-through">{{ plan.price }}</span>
+        <span id="promoPriceNew" class="text-3xl font-black">{{ plan.price }}</span>
+        <span id="promoBadge" class="hidden px-3 py-1 rounded-full bg-purple-500/20 border border-purple-400/40 text-purple-300 text-sm font-bold"></span>
+      </div>
+
+      <p class="text-neutral-400 leading-relaxed mb-6">
+        Переведи <span id="promoSum" class="text-white font-semibold">{{ plan.price }}</span> удобным способом и напиши администратору свой логин
         <span class="text-purple-400 font-bold">{{ user["username"] }}</span> для активации.
       </p>
+
+      <!-- Промокод -->
+      <div class="mb-8 rounded-2xl bg-white/5 border border-white/10 p-4">
+        <label for="promoInput" class="block text-sm font-semibold text-neutral-300 mb-2">
+          <i data-lucide="ticket" class="w-4 h-4 inline-block align-[-2px]"></i> Промокод
+        </label>
+        <div class="flex gap-2">
+          <input id="promoInput" type="text" maxlength="64" placeholder="Введите промокод" autocomplete="off"
+                 class="flex-1 min-w-0 px-4 py-3 rounded-xl bg-neutral-900/70 border border-white/10 text-white placeholder-neutral-500 focus:outline-none focus:border-purple-400/60 uppercase tracking-wider">
+          <button type="button" id="promoApplyBtn"
+                  class="px-5 py-3 rounded-xl bg-neutral-800 border border-white/10 font-bold hover:bg-neutral-700 transition-colors whitespace-nowrap">
+            Применить
+          </button>
+        </div>
+        <div id="promoMsg" class="text-sm mt-2"></div>
+        <div id="promoHint" class="hidden text-xs text-neutral-400 mt-2"></div>
+      </div>
 
       <div class="flex flex-col gap-4">
         <a href="{{ telegram_url }}" target="_blank" rel="noopener"
@@ -29,12 +53,11 @@
           <i data-lucide="send" class="w-5 h-5"></i> Оплата через Telegram
         </a>
 
-        {% if funpay_url %}
-        <a href="{{ funpay_url }}" target="_blank" rel="noopener"
-           class="glow-btn block w-full px-6 py-4 rounded-2xl bg-neutral-800 border border-white/10 font-bold text-lg transition-all flex items-center justify-center gap-2 hover:bg-neutral-700">
-          <i data-lucide="shopping-cart" class="w-5 h-5"></i> Оплата через FunPay
+        <a id="funpayBtn" href="{{ funpay_url or '#' }}" target="_blank" rel="noopener"
+           class="glow-btn block w-full px-6 py-4 rounded-2xl bg-neutral-800 border border-white/10 font-bold text-lg transition-all flex items-center justify-center gap-2 hover:bg-neutral-700 {% if not funpay_url %}hidden{% endif %}">
+          <i data-lucide="shopping-cart" class="w-5 h-5"></i>
+          <span id="funpayBtnText">Оплата через FunPay</span>
         </a>
-        {% endif %}
       </div>
 
       <div class="text-sm text-neutral-400 mt-6">
@@ -43,5 +66,115 @@
     </div>
   </div>
 </section>
+
+<script>
+(function () {
+  var input = document.getElementById('promoInput');
+  var btn = document.getElementById('promoApplyBtn');
+  var msg = document.getElementById('promoMsg');
+  var hint = document.getElementById('promoHint');
+  var funpayBtn = document.getElementById('funpayBtn');
+  var funpayBtnText = document.getElementById('funpayBtnText');
+  var priceOld = document.getElementById('promoPriceOld');
+  var priceNew = document.getElementById('promoPriceNew');
+  var promoSum = document.getElementById('promoSum');
+  var badge = document.getElementById('promoBadge');
+
+  var defaultPrice = {{ plan.price|tojson }};
+  var defaultFunpay = {{ (funpay_url or '')|tojson }};
+  var activePromo = null;
+
+  function setMsg(text, ok) {
+    msg.textContent = text || '';
+    msg.className = 'text-sm mt-2 ' + (ok ? 'text-emerald-400' : 'text-red-400');
+  }
+
+  function resetPromo() {
+    activePromo = null;
+    priceOld.classList.add('hidden');
+    priceNew.textContent = defaultPrice;
+    promoSum.textContent = defaultPrice;
+    badge.classList.add('hidden');
+    hint.classList.add('hidden');
+    if (defaultFunpay) {
+      funpayBtn.href = defaultFunpay;
+      funpayBtn.classList.remove('hidden');
+      funpayBtnText.textContent = 'Оплата через FunPay';
+    } else {
+      funpayBtn.classList.add('hidden');
+    }
+  }
+
+  function applyPromo(code) {
+    code = (code || '').trim();
+    if (!code) {
+      setMsg('Введите промокод.', false);
+      return;
+    }
+    btn.disabled = true;
+    btn.textContent = 'Применяем...';
+
+    fetch({{ url_for('api_apply_promo')|tojson }}, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ code: code, plan_key: {{ plan_key|tojson }} })
+    })
+      .then(function (resp) {
+        return resp.json().then(function (data) { return { ok: resp.ok, data: data }; });
+      })
+      .then(function (r) {
+        btn.disabled = false;
+        btn.textContent = 'Применить';
+        var d = r.data || {};
+        if (!r.ok || !d.ok) {
+          resetPromo();
+          setMsg(d.error || 'Не удалось применить промокод.', false);
+          return;
+        }
+
+        activePromo = d.code;
+        setMsg('Промокод ' + d.code + ' активирован! Скидка −' + d.discount_percent + '%', true);
+
+        if (d.new_price) {
+          priceOld.textContent = d.original_price || defaultPrice;
+          priceOld.classList.remove('hidden');
+          priceNew.textContent = d.new_price;
+          promoSum.textContent = d.new_price;
+          badge.textContent = '−' + d.discount_percent + '%';
+          badge.classList.remove('hidden');
+        }
+
+        if (d.funpay_url) {
+          funpayBtn.href = d.funpay_url;
+          funpayBtn.classList.remove('hidden');
+          funpayBtnText.textContent = 'Оплата через FunPay со скидкой −' + d.discount_percent + '%';
+        } else if (!defaultFunpay) {
+          funpayBtn.classList.add('hidden');
+        }
+
+        hint.textContent = 'При оплате через Telegram напишите администратору промокод ' + d.code + ', чтобы получить скидку.';
+        hint.classList.remove('hidden');
+      })
+      .catch(function () {
+        btn.disabled = false;
+        btn.textContent = 'Применить';
+        setMsg('Ошибка сети. Попробуйте ещё раз.', false);
+      });
+  }
+
+  btn.addEventListener('click', function () { applyPromo(input.value); });
+  input.addEventListener('keydown', function (e) {
+    if (e.key === 'Enter') {
+      e.preventDefault();
+      applyPromo(input.value);
+    }
+  });
+
+  {% if promo_prefill %}
+  input.value = {{ promo_prefill|tojson }};
+  applyPromo({{ promo_prefill|tojson }});
+  {% endif %}
+})();
+</script>
 
 {% endblock %}
