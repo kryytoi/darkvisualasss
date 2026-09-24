@@ -947,6 +947,69 @@ def ensure_subscription_keys_table(db):
         traceback.print_exc()
 
 
+FOREVER_ALIASES = {
+    "forever",
+    "навсегда",
+    "lifetime",
+    "вечно",
+    "бессрочно",
+    "бессрочная",
+    "бессрочный",
+    "infinity",
+    "infinite",
+    "inf",
+    "перманент",
+    "permanent",
+    "perm",
+    "всегда",
+    "вечная",
+    "вечный",
+    "max",
+    "all",
+    "unlimited",
+    "безлимит",
+    "безлимитно",
+    "∞",
+    "-1",
+}
+
+
+def _apply_forever_sub(db, target_id):
+    """
+    Выдаёт пользователю вечную подписку (Lifetime).
+    Если колонка expires_at строковая (TEXT) — записываем 'forever'.
+    Если в Postgres осталась старая схема с TIMESTAMP — фолбэчимся на 9999-12-31T23:59:59.
+    """
+    try:
+        cur = execute(
+            db,
+            "UPDATE users SET expires_at = 'forever', plan = 'Lifetime', status = 'active' WHERE id = %s",
+            (target_id,),
+        )
+        if getattr(cur, "rowcount", 1) == 0:
+            return False, "Пользователь не найден (обновлено 0 строк)!"
+        return True, "Выдана вечная подписка (Forever)!"
+    except Exception as e:
+        print(f"[apply_subscription_days forever fallback]: {e}")
+        traceback.print_exc()
+        _rollback_if_needed(db)
+        try:
+            far_future = "9999-12-31T23:59:59"
+            cur = execute(
+                db,
+                "UPDATE users SET expires_at = %s, plan = 'Lifetime', status = 'active' WHERE id = %s",
+                (far_future, target_id),
+            )
+            if getattr(cur, "rowcount", 1) == 0:
+                return False, "Пользователь не найден (обновлено 0 строк)!"
+            return True, "Выдана вечная подписка (Forever)!"
+        except Exception as e2:
+            print(f"[apply_subscription_days forever fallback error]: {e2}")
+            traceback.print_exc()
+            _rollback_if_needed(db)
+            return False, f"Ошибка БД при выдаче подписки: {e2}"
+
+
 def apply_subscription_days(db, target_id, raw_days):
     try:
         raw_days = str(raw_days or "").strip().lower()
@@ -955,93 +1018,108 @@ def apply_subscription_days(db, target_id, raw_days):
             raw_days = raw_days.split()[0]
         raw_days = raw_days.strip()
 
-        if raw_days in ["forever", "навсегда", "lifetime", "вечно"]:
-            try:
-                execute(
-                    db,
-                    "UPDATE users SET expires_at = 'forever', plan = 'Lifetime', status = 'active' WHERE id = %s",
-                    (target_id,),
-                )
-            except Exception as e:
-                # На случай если колонка expires_at — TIMESTAMP (старая схема Postgres): 'forever' не валиден.
-                # Фолбэк: ставим далёкую дату, которую validate_user_access всё равно посчитает активной.
-                print(f"[apply_subscription_days forever fallback]: {e}")
-                traceback.print_exc()
-                _rollback_if_needed(db)
-                far_future = "9999-12-31T23:59:59"
-                execute(
-                    db,
-                    "UPDATE users SET expires_at = %s, plan = 'Lifetime', status = 'active' WHERE id = %s",
-                    (far_future, target_id),
-                )
-            return True, "Выдана вечная подписка (Forever)!"
+        if not raw_days:
+            return False, "Ошибка: некорректное значение срока подписки! Укажите число дней (например, 30) или forever."
+
+        if raw_days in FOREVER_ALIASES:
+            return _apply_forever_sub(db, target_id)
 
         # поддержка как "30", так и "30.0" или "30 дней" (уже обрезали)
+        if raw_days.endswith(".0"):
+            raw_days = raw_days[:-2]
+
         days = None
-        try:
-            # отбрасываем возможные ".0"
-            if raw_days.endswith(".0"):
-                raw_days = raw_days[:-2]
-            if raw_days.isdigit():
+        if raw_days.isdigit():
+            try:
                 days = int(raw_days)
-            else:
-                # попробуем распарсить int из строки типа "45"
-                days = int(float(raw_days)) if raw_days.replace(".", "", 1).isdigit() else None
+            except (ValueError, OverflowError):
+                days = None
+        else:
+            try:
+                f_val = float(raw_days)
+                if f_val > 0:
+                    days = int(f_val)
+            except (ValueError, OverflowError):
+                days = None
+
+        if days is None or days <= 0:
+            return False, "Ошибка: некорректное значение срока подписки! Укажите число дней (например, 30) или forever."
+
+        # Если указано огромное число дней (например, 9999999999 или >= 36500 дн. (~100 лет)),
+        # или число, превышающее возможности C int / timedelta / календарной даты —
+        # считаем это запросом на вечную подписку (Lifetime), предотвращая ошибку
+        # "Python int too large to convert to C int" или переполнение даты.
+        if days >= 36500:
+            return _apply_forever_sub(db, target_id)
+
+        try:
+            target_user = fetchone(db, "SELECT expires_at FROM users WHERE id = %s", (target_id,))
+        except Exception as e:
+            print(f"[apply_subscription_days fetch error]: {e}")
+            traceback.print_exc()
+            _rollback_if_needed(db)
+            return False, f"Ошибка БД при проверке пользователя: {e}"
+
+        if not target_user:
+            return False, "Пользователь не найден!"
+
+        now = datetime.utcnow()
+
+        cur_exp = None
+        try:
+            cur_exp = target_user.get("expires_at") if isinstance(target_user, dict) else target_user["expires_at"]
         except Exception:
-            days = None
-
-        if days is not None and days > 0:
-            try:
-                target_user = fetchone(db, "SELECT expires_at FROM users WHERE id = %s", (target_id,))
-            except Exception as e:
-                print(f"[apply_subscription_days fetch error]: {e}")
-                traceback.print_exc()
-                _rollback_if_needed(db)
-                return False, f"Ошибка БД при проверке пользователя: {e}"
-
-            if not target_user:
-                return False, "Пользователь не найден!"
-
-            now = datetime.utcnow()
-
             cur_exp = None
-            try:
-                cur_exp = target_user.get("expires_at") if isinstance(target_user, dict) else target_user["expires_at"]
-            except Exception:
-                cur_exp = None
 
-            if not cur_exp or str(cur_exp).lower() == "forever" or str(cur_exp) == "9999-12-31T23:59:59":
-                base_time = now
-            else:
-                try:
-                    parsed = datetime.fromisoformat(str(cur_exp).replace("Z", ""))
+        cur_exp_str = str(cur_exp or "").strip().lower()
+
+        # Если подписки не было или она вечная (forever / 9999-12-31), отсчитываем от текущего момента
+        if not cur_exp or cur_exp_str == "forever" or cur_exp_str.startswith("9999-12-31") or "9999-12-31" in cur_exp_str:
+            base_time = now
+        else:
+            try:
+                clean_exp = str(cur_exp).replace("Z", "").strip()
+                parsed = datetime.fromisoformat(clean_exp)
+                if parsed.year >= 9000:
+                    base_time = now
+                else:
                     base_time = parsed if parsed > now else now
-                except Exception:
-                    # поддержка старого формата "YYYY-MM-DD HH:MM:SS" или timestamp
-                    try:
-                        parsed = datetime.strptime(str(cur_exp)[:19], "%Y-%m-%d %H:%M:%S")
-                        base_time = parsed if parsed > now else now
-                    except Exception:
+            except Exception:
+                try:
+                    parsed = datetime.strptime(str(cur_exp)[:19], "%Y-%m-%d %H:%M:%S")
+                    if parsed.year >= 9000:
                         base_time = now
+                    else:
+                        base_time = parsed if parsed > now else now
+                except Exception:
+                    base_time = now
 
-            new_exp = (base_time + timedelta(days=days)).isoformat()
-            try:
-                cur = execute(
-                    db,
-                    "UPDATE users SET expires_at = %s, plan = 'Active', status = 'active' WHERE id = %s",
-                    (new_exp, target_id),
-                )
-                # если 0 строк обновлено — пользователя нет
-                if getattr(cur, "rowcount", 1) == 0:
-                    return False, "Пользователь не найден (обновлено 0 строк)!"
-            except Exception as e:
-                print(f"[apply_subscription_days update error]: {e}")
-                traceback.print_exc()
-                _rollback_if_needed(db)
-                return False, f"Ошибка БД при выдаче подписки: {e}"
-            return True, f"Подписка успешно продлена на {days} дн.!"
+        # Расчёт новой даты окончания с защитой от любых OverflowError (включая C int overflow)
+        try:
+            new_dt = base_time + timedelta(days=days)
+            if new_dt.year >= 9999:
+                return _apply_forever_sub(db, target_id)
+            new_exp = new_dt.isoformat()
+        except (OverflowError, ValueError) as oe:
+            print(f"[apply_subscription_days timedelta overflow]: {oe}")
+            return _apply_forever_sub(db, target_id)
 
-        return False, "Ошибка: некорректное значение срока подписки! Укажите число дней (например, 30) или forever."
+        try:
+            cur = execute(
+                db,
+                "UPDATE users SET expires_at = %s, plan = 'Active', status = 'active' WHERE id = %s",
+                (new_exp, target_id),
+            )
+            # если 0 строк обновлено — пользователя нет
+            if getattr(cur, "rowcount", 1) == 0:
+                return False, "Пользователь не найден (обновлено 0 строк)!"
+        except Exception as e:
+            print(f"[apply_subscription_days update error]: {e}")
+            traceback.print_exc()
+            _rollback_if_needed(db)
+            return False, f"Ошибка БД при выдаче подписки: {e}"
+        return True, f"Подписка успешно продлена на {days} дн.!"
+
     except Exception as e:
         print(f"[apply_subscription_days unexpected]: {e}")
         traceback.print_exc()
@@ -1077,20 +1155,23 @@ def validate_user_access(user, hwid_from_req):
     if not expires_at:
         return False, "У вас нет активной подписки!"
 
+    cur_exp_str = str(expires_at).strip().lower()
     # forever и fallback-дата для Postgres TIMESTAMP
-    if str(expires_at).lower() == "forever" or str(expires_at).startswith("9999-12-31"):
+    if cur_exp_str == "forever" or cur_exp_str.startswith("9999-12-31") or "9999-12-31" in cur_exp_str:
         return True, None
 
     try:
-        exp_str = str(expires_at).replace("Z", "")
+        exp_str = str(expires_at).replace("Z", "").strip()
         exp_date = datetime.fromisoformat(exp_str)
-        if datetime.utcnow() > exp_date:
-            return False, "Ваша подписка истекла!"
+        if exp_date.year >= 9000 or exp_date > datetime.utcnow():
+            return True, None
+        return False, "Ваша подписка истекла!"
     except (ValueError, TypeError):
         try:
             exp_date = datetime.strptime(str(expires_at)[:19], "%Y-%m-%d %H:%M:%S")
-            if datetime.utcnow() > exp_date:
-                return False, "Ваша подписка истекла!"
+            if exp_date.year >= 9000 or exp_date > datetime.utcnow():
+                return True, None
+            return False, "Ваша подписка истекла!"
         except Exception:
             return False, "Ошибка формата подписки!"
 
@@ -1427,18 +1508,19 @@ def profile():
     }
 
     expires_at = user.get("expires_at")
+    cur_exp_str = str(expires_at or "").strip().lower()
     # поддержка как 'forever', так и fallback-даты 9999-12-31 для Postgres TIMESTAMP
-    if expires_at in ("forever", "9999-12-31T23:59:59", "9999-12-31 23:59:59"):
+    if cur_exp_str == "forever" or cur_exp_str.startswith("9999-12-31") or "9999-12-31" in cur_exp_str:
         sub_info = {"active": True, "text": "Навсегда (Forever)", "days_left": "∞"}
     elif expires_at:
         try:
             # отрезаем Z и миллисекунды если есть
-            exp_str = str(expires_at).replace("Z", "")
+            exp_str = str(expires_at).replace("Z", "").strip()
             exp_date = datetime.fromisoformat(exp_str)
             now = datetime.utcnow()
             if exp_date > now:
                 # далёкое будущее считаем forever
-                if exp_date.year >= 9999:
+                if exp_date.year >= 9000:
                     sub_info = {"active": True, "text": "Навсегда (Forever)", "days_left": "∞"}
                 else:
                     diff = exp_date - now
@@ -1455,12 +1537,15 @@ def profile():
                 exp_date = datetime.strptime(str(expires_at)[:19], "%Y-%m-%d %H:%M:%S")
                 now = datetime.utcnow()
                 if exp_date > now:
-                    diff = exp_date - now
-                    sub_info = {
-                        "active": True,
-                        "text": exp_date.strftime("%d.%m.%Y %H:%M"),
-                        "days_left": diff.days + 1
-                    }
+                    if exp_date.year >= 9000:
+                        sub_info = {"active": True, "text": "Навсегда (Forever)", "days_left": "∞"}
+                    else:
+                        diff = exp_date - now
+                        sub_info = {
+                            "active": True,
+                            "text": exp_date.strftime("%d.%m.%Y %H:%M"),
+                            "days_left": diff.days + 1
+                        }
                 else:
                     sub_info = {"active": False, "text": "Истекла", "days_left": 0}
             except Exception:
@@ -2013,13 +2098,34 @@ def admin_generate_key():
         flash("Укажите срок подписки для ключа (например, 30 или forever)!", "error")
         return redirect(url_for("admin_panel"))
 
-    if not (raw_days in ["forever", "навсегда", "lifetime"] or (raw_days.isdigit() and int(raw_days) > 0)):
+    is_forever = raw_days in FOREVER_ALIASES
+    num_days = None
+    if not is_forever:
+        if raw_days.endswith(".0"):
+            raw_days = raw_days[:-2]
+        if raw_days.isdigit():
+            try:
+                num_days = int(raw_days)
+            except (ValueError, OverflowError):
+                num_days = None
+        else:
+            try:
+                f_val = float(raw_days)
+                if f_val > 0:
+                    num_days = int(f_val)
+            except (ValueError, OverflowError):
+                num_days = None
+
+    if not is_forever and (num_days is None or num_days <= 0):
         flash("Некорректный срок подписки для ключа! Укажите число дней или forever.", "error")
         return redirect(url_for("admin_panel"))
 
-    if raw_days in ["навсегда", "lifetime"]:
+    if is_forever or (num_days is not None and num_days >= 36500):
         raw_days = "forever"
-    plan_name = "Lifetime" if raw_days == "forever" else f"{raw_days} дней"
+        plan_name = "Lifetime"
+    else:
+        raw_days = str(num_days)
+        plan_name = f"{num_days} дней"
 
     try:
         db = get_db()
