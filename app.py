@@ -5,6 +5,7 @@ import string
 import sqlite3
 import base64
 import uuid
+import traceback
 import requests
 from werkzeug.utils import secure_filename
 from datetime import datetime, timedelta
@@ -562,12 +563,26 @@ def _close_shared_db(exc=None):
         shared._real_close()
 
 
+def _rollback_if_needed(db):
+    try:
+        # для psycopg2 — сбросить aborted-транзакцию, для sqlite — безопасный noop
+        conn = db._conn if isinstance(db, _SharedConnection) else db
+        if hasattr(conn, "rollback"):
+            conn.rollback()
+    except Exception:
+        pass
+
+
 def execute(db, query, params=()):
     cursor = db.cursor()
     if not os.environ.get("DATABASE_URL"):
         query = query.replace("%s", "?")
-    cursor.execute(query, params)
-    db.commit()
+    try:
+        cursor.execute(query, params)
+        db.commit()
+    except Exception:
+        _rollback_if_needed(db)
+        raise
     return cursor
 
 
@@ -575,10 +590,24 @@ def fetchone(db, query, params=()):
     cursor = db.cursor()
     if not os.environ.get("DATABASE_URL"):
         query = query.replace("%s", "?")
-    cursor.execute(query, params)
+    try:
+        cursor.execute(query, params)
+    except Exception:
+        _rollback_if_needed(db)
+        raise
     res = cursor.fetchone()
     if res and not os.environ.get("DATABASE_URL"):
-        res = dict(res)
+        try:
+            res = dict(res)
+        except Exception:
+            pass
+    # RealDictRow -> dict для единообразия
+    if res is not None and os.environ.get("DATABASE_URL"):
+        try:
+            if not isinstance(res, dict):
+                res = dict(res)
+        except Exception:
+            pass
     return res
 
 
@@ -586,10 +615,22 @@ def fetchall(db, query, params=()):
     cursor = db.cursor()
     if not os.environ.get("DATABASE_URL"):
         query = query.replace("%s", "?")
-    cursor.execute(query, params)
+    try:
+        cursor.execute(query, params)
+    except Exception:
+        _rollback_if_needed(db)
+        raise
     res = cursor.fetchall()
     if res and not os.environ.get("DATABASE_URL"):
-        res = [dict(row) for row in res]
+        try:
+            res = [dict(row) for row in res]
+        except Exception:
+            pass
+    if res and os.environ.get("DATABASE_URL"):
+        try:
+            res = [dict(r) if not isinstance(r, dict) else r for r in res]
+        except Exception:
+            pass
     return res
 
 
@@ -859,41 +900,153 @@ def current_user():
         return None
 
 
-def apply_subscription_days(db, target_id, raw_days):
-    raw_days = str(raw_days).strip().lower()
+_subscription_keys_ready = False
 
-    if raw_days in ["forever", "навсегда"]:
-        execute(
-            db,
-            "UPDATE users SET expires_at = 'forever', plan = 'Lifetime', status = 'active' WHERE id = %s",
-            (target_id,),
-        )
-        return True, "Выдана вечная подписка (Forever)!"
-
-    if raw_days.isdigit() and int(raw_days) > 0:
-        days = int(raw_days)
-        target_user = fetchone(db, "SELECT expires_at FROM users WHERE id = %s", (target_id,))
-        now = datetime.utcnow()
-
-        cur_exp = target_user.get("expires_at") if target_user else None
-        if not cur_exp or cur_exp == "forever":
-            base_time = now
+def ensure_subscription_keys_table(db):
+    """Ленивая миграция: на Vercel init_db пропускается, а таблица ключей обязательна для redeem / генерации."""
+    global _subscription_keys_ready
+    if _subscription_keys_ready:
+        return
+    is_postgres = bool(os.environ.get("DATABASE_URL"))
+    try:
+        if is_postgres:
+            execute(
+                db,
+                """
+                CREATE TABLE IF NOT EXISTS subscription_keys (
+                    id SERIAL PRIMARY KEY,
+                    key_code VARCHAR(64) UNIQUE NOT NULL,
+                    days VARCHAR(20) NOT NULL,
+                    plan_name VARCHAR(50),
+                    is_used BOOLEAN DEFAULT FALSE,
+                    used_by VARCHAR(50),
+                    created_at TEXT,
+                    used_at TEXT
+                );
+                """,
+            )
         else:
+            execute(
+                db,
+                """
+                CREATE TABLE IF NOT EXISTS subscription_keys (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    key_code TEXT UNIQUE NOT NULL,
+                    days TEXT NOT NULL,
+                    plan_name TEXT,
+                    is_used BOOLEAN DEFAULT 0,
+                    used_by TEXT,
+                    created_at TEXT,
+                    used_at TEXT
+                );
+                """,
+            )
+        _subscription_keys_ready = True
+    except Exception as e:
+        print(f"[ensure_subscription_keys_table error]: {e}")
+        traceback.print_exc()
+
+
+def apply_subscription_days(db, target_id, raw_days):
+    try:
+        raw_days = str(raw_days or "").strip().lower()
+        # Нормализуем: "30 дней" -> "30", "forever " -> "forever"
+        if " " in raw_days:
+            raw_days = raw_days.split()[0]
+        raw_days = raw_days.strip()
+
+        if raw_days in ["forever", "навсегда", "lifetime", "вечно"]:
             try:
-                parsed = datetime.fromisoformat(cur_exp)
-                base_time = parsed if parsed > now else now
+                execute(
+                    db,
+                    "UPDATE users SET expires_at = 'forever', plan = 'Lifetime', status = 'active' WHERE id = %s",
+                    (target_id,),
+                )
+            except Exception as e:
+                # На случай если колонка expires_at — TIMESTAMP (старая схема Postgres): 'forever' не валиден.
+                # Фолбэк: ставим далёкую дату, которую validate_user_access всё равно посчитает активной.
+                print(f"[apply_subscription_days forever fallback]: {e}")
+                traceback.print_exc()
+                _rollback_if_needed(db)
+                far_future = "9999-12-31T23:59:59"
+                execute(
+                    db,
+                    "UPDATE users SET expires_at = %s, plan = 'Lifetime', status = 'active' WHERE id = %s",
+                    (far_future, target_id),
+                )
+            return True, "Выдана вечная подписка (Forever)!"
+
+        # поддержка как "30", так и "30.0" или "30 дней" (уже обрезали)
+        days = None
+        try:
+            # отбрасываем возможные ".0"
+            if raw_days.endswith(".0"):
+                raw_days = raw_days[:-2]
+            if raw_days.isdigit():
+                days = int(raw_days)
+            else:
+                # попробуем распарсить int из строки типа "45"
+                days = int(float(raw_days)) if raw_days.replace(".", "", 1).isdigit() else None
+        except Exception:
+            days = None
+
+        if days is not None and days > 0:
+            try:
+                target_user = fetchone(db, "SELECT expires_at FROM users WHERE id = %s", (target_id,))
+            except Exception as e:
+                print(f"[apply_subscription_days fetch error]: {e}")
+                traceback.print_exc()
+                _rollback_if_needed(db)
+                return False, f"Ошибка БД при проверке пользователя: {e}"
+
+            if not target_user:
+                return False, "Пользователь не найден!"
+
+            now = datetime.utcnow()
+
+            cur_exp = None
+            try:
+                cur_exp = target_user.get("expires_at") if isinstance(target_user, dict) else target_user["expires_at"]
             except Exception:
+                cur_exp = None
+
+            if not cur_exp or str(cur_exp).lower() == "forever" or str(cur_exp) == "9999-12-31T23:59:59":
                 base_time = now
+            else:
+                try:
+                    parsed = datetime.fromisoformat(str(cur_exp).replace("Z", ""))
+                    base_time = parsed if parsed > now else now
+                except Exception:
+                    # поддержка старого формата "YYYY-MM-DD HH:MM:SS" или timestamp
+                    try:
+                        parsed = datetime.strptime(str(cur_exp)[:19], "%Y-%m-%d %H:%M:%S")
+                        base_time = parsed if parsed > now else now
+                    except Exception:
+                        base_time = now
 
-        new_exp = (base_time + timedelta(days=days)).isoformat()
-        execute(
-            db,
-            "UPDATE users SET expires_at = %s, plan = 'Active', status = 'active' WHERE id = %s",
-            (new_exp, target_id),
-        )
-        return True, f"Подписка успешно продлена на {days} дн.!"
+            new_exp = (base_time + timedelta(days=days)).isoformat()
+            try:
+                cur = execute(
+                    db,
+                    "UPDATE users SET expires_at = %s, plan = 'Active', status = 'active' WHERE id = %s",
+                    (new_exp, target_id),
+                )
+                # если 0 строк обновлено — пользователя нет
+                if getattr(cur, "rowcount", 1) == 0:
+                    return False, "Пользователь не найден (обновлено 0 строк)!"
+            except Exception as e:
+                print(f"[apply_subscription_days update error]: {e}")
+                traceback.print_exc()
+                _rollback_if_needed(db)
+                return False, f"Ошибка БД при выдаче подписки: {e}"
+            return True, f"Подписка успешно продлена на {days} дн.!"
 
-    return False, "Ошибка: некорректное значение срока подписки!"
+        return False, "Ошибка: некорректное значение срока подписки! Укажите число дней (например, 30) или forever."
+    except Exception as e:
+        print(f"[apply_subscription_days unexpected]: {e}")
+        traceback.print_exc()
+        _rollback_if_needed(db)
+        return False, f"Внутренняя ошибка при выдаче подписки: {e}"
 
 
 def generate_subscription_key():
@@ -924,12 +1077,21 @@ def validate_user_access(user, hwid_from_req):
     if not expires_at:
         return False, "У вас нет активной подписки!"
 
-    if expires_at != "forever":
+    # forever и fallback-дата для Postgres TIMESTAMP
+    if str(expires_at).lower() == "forever" or str(expires_at).startswith("9999-12-31"):
+        return True, None
+
+    try:
+        exp_str = str(expires_at).replace("Z", "")
+        exp_date = datetime.fromisoformat(exp_str)
+        if datetime.utcnow() > exp_date:
+            return False, "Ваша подписка истекла!"
+    except (ValueError, TypeError):
         try:
-            exp_date = datetime.fromisoformat(expires_at)
+            exp_date = datetime.strptime(str(expires_at)[:19], "%Y-%m-%d %H:%M:%S")
             if datetime.utcnow() > exp_date:
                 return False, "Ваша подписка истекла!"
-        except ValueError:
+        except Exception:
             return False, "Ошибка формата подписки!"
 
     return True, None
@@ -1265,23 +1427,44 @@ def profile():
     }
 
     expires_at = user.get("expires_at")
-    if expires_at == "forever":
+    # поддержка как 'forever', так и fallback-даты 9999-12-31 для Postgres TIMESTAMP
+    if expires_at in ("forever", "9999-12-31T23:59:59", "9999-12-31 23:59:59"):
         sub_info = {"active": True, "text": "Навсегда (Forever)", "days_left": "∞"}
     elif expires_at:
         try:
-            exp_date = datetime.fromisoformat(expires_at)
+            # отрезаем Z и миллисекунды если есть
+            exp_str = str(expires_at).replace("Z", "")
+            exp_date = datetime.fromisoformat(exp_str)
             now = datetime.utcnow()
             if exp_date > now:
-                diff = exp_date - now
-                sub_info = {
-                    "active": True,
-                    "text": exp_date.strftime("%d.%m.%Y %H:%M"),
-                    "days_left": diff.days + 1
-                }
+                # далёкое будущее считаем forever
+                if exp_date.year >= 9999:
+                    sub_info = {"active": True, "text": "Навсегда (Forever)", "days_left": "∞"}
+                else:
+                    diff = exp_date - now
+                    sub_info = {
+                        "active": True,
+                        "text": exp_date.strftime("%d.%m.%Y %H:%M"),
+                        "days_left": diff.days + 1
+                    }
             else:
                 sub_info = {"active": False, "text": "Истекла", "days_left": 0}
-        except ValueError:
-            sub_info = {"active": False, "text": "Ошибка даты", "days_left": 0}
+        except (ValueError, TypeError):
+            # попробуем старый формат через strptime
+            try:
+                exp_date = datetime.strptime(str(expires_at)[:19], "%Y-%m-%d %H:%M:%S")
+                now = datetime.utcnow()
+                if exp_date > now:
+                    diff = exp_date - now
+                    sub_info = {
+                        "active": True,
+                        "text": exp_date.strftime("%d.%m.%Y %H:%M"),
+                        "days_left": diff.days + 1
+                    }
+                else:
+                    sub_info = {"active": False, "text": "Истекла", "days_left": 0}
+            except Exception:
+                sub_info = {"active": False, "text": "Ошибка даты", "days_left": 0}
 
     db = get_db()
     ensure_user_config_downloads_table(db)
@@ -1353,36 +1536,70 @@ def redeem_key():
         return redirect(url_for("login"))
 
     key_code = request.form.get("key_code", "").strip().upper()
+    # убираем пробелы/дефисы которые пользователь мог скопировать случайно, оставляем только A-Z0-9 и -
+    # но сам поиск идёт по точному коду; нормализуем лишь регистр и пробелы
+    key_code = "".join(ch for ch in key_code if ch.isalnum() or ch == "-")
     if not key_code:
         flash("Введите ключ активации!", "error")
         return redirect(url_for("profile"))
 
-    db = get_db()
-    key_row = fetchone(db, "SELECT * FROM subscription_keys WHERE key_code = %s", (key_code,))
+    try:
+        db = get_db()
+        ensure_subscription_keys_table(db)
+        try:
+            key_row = fetchone(db, "SELECT * FROM subscription_keys WHERE key_code = %s", (key_code,))
+        except Exception as e:
+            print(f"[redeem_key fetch error]: {e}")
+            traceback.print_exc()
+            _rollback_if_needed(db)
+            db.close()
+            flash(f"Ошибка БД при проверке ключа: {e}", "error")
+            return redirect(url_for("profile"))
 
-    if not key_row:
+        if not key_row:
+            db.close()
+            flash("Ключ не найден! Проверьте правильность ввода.", "error")
+            return redirect(url_for("profile"))
+
+        # is_used может быть True/1/'t' — считаем любым truthy кроме 0/False/None
+        is_used_val = key_row.get("is_used")
+        if is_used_val not in (None, False, 0, "0", "f", "false", "False"):
+            # psycopg2 возвращает True/False, sqlite 0/1
+            if bool(is_used_val) is True or str(is_used_val).lower() in ("1", "true", "t"):
+                db.close()
+                flash("Этот ключ уже был активирован ранее!", "error")
+                return redirect(url_for("profile"))
+
+        ok, msg = apply_subscription_days(db, user["id"], key_row.get("days"))
+        if ok:
+            try:
+                execute(
+                    db,
+                    "UPDATE subscription_keys SET is_used = %s, used_by = %s, used_at = %s WHERE id = %s",
+                    (True, user["username"], datetime.utcnow().isoformat(), key_row["id"]),
+                )
+            except Exception as e:
+                print(f"[redeem_key update key error]: {e}")
+                traceback.print_exc()
+                _rollback_if_needed(db)
+                flash(f"Подписка выдана, но не удалось пометить ключ использованным: {e}", "warning")
+                db.close()
+                return redirect(url_for("profile"))
+            flash(f"Ключ активирован! {msg}", "success")
+        else:
+            flash(msg, "error")
+
         db.close()
-        flash("Ключ не найден! Проверьте правильность ввода.", "error")
         return redirect(url_for("profile"))
-
-    if key_row.get("is_used"):
-        db.close()
-        flash("Этот ключ уже был активирован ранее!", "error")
+    except Exception as e:
+        print(f"[redeem_key unexpected]: {e}")
+        traceback.print_exc()
+        try:
+            _rollback_if_needed(get_db())
+        except Exception:
+            pass
+        flash(f"Внутренняя ошибка при активации ключа: {e}", "error")
         return redirect(url_for("profile"))
-
-    ok, msg = apply_subscription_days(db, user["id"], key_row.get("days"))
-    if ok:
-        execute(
-            db,
-            "UPDATE subscription_keys SET is_used = %s, used_by = %s, used_at = %s WHERE id = %s",
-            (True, user["username"], datetime.utcnow().isoformat(), key_row["id"]),
-        )
-        flash(f"Ключ активирован! {msg}", "success")
-    else:
-        flash(msg, "error")
-
-    db.close()
-    return redirect(url_for("profile"))
 
 
 @app.route("/admin")
@@ -1391,54 +1608,111 @@ def admin_panel():
     if not user or not user.get("is_admin"):
         return "Доступ запрещен", 403
 
-    db = get_db()
-    ensure_user_config_downloads_table(db)
-    all_users = fetchall(db, "SELECT * FROM users ORDER BY id DESC")
-    all_keys = fetchall(db, "SELECT * FROM subscription_keys ORDER BY id DESC")
-    all_achievements = fetchall(db, "SELECT * FROM achievements ORDER BY id DESC")
-    for a in all_achievements:
-        a["image_url"] = normalize_achievement_image_url(a.get("image_url"))
-    all_configs = fetchall(db, "SELECT * FROM configs ORDER BY id DESC")
-    for c in all_configs:
-        c["images"] = config_images_list(c)
-    ensure_promo_codes_table(db)
-    all_promos = fetchall(db, "SELECT * FROM promo_codes ORDER BY id DESC")
-    all_grants = fetchall(
-        db,
-        """
-        SELECT ua.id AS user_achievement_id, ua.granted_at,
-               u.username, u.id AS user_id,
-               a.name AS achievement_name, a.code AS achievement_code, a.id AS achievement_id
-        FROM user_achievements ua
-        JOIN users u ON u.id = ua.user_id
-        JOIN achievements a ON a.id = ua.achievement_id
-        ORDER BY ua.granted_at DESC
-        """,
-    )
-    all_config_grants = fetchall(
-        db,
-        """
-        SELECT ucd.id AS grant_id, ucd.granted_at,
-               u.username, u.id AS user_id,
-               c.name AS config_name, c.id AS config_id, c.price AS config_price
-        FROM user_config_downloads ucd
-        JOIN users u ON u.id = ucd.user_id
-        JOIN configs c ON c.id = ucd.config_id
-        ORDER BY ucd.granted_at DESC
-        """,
-    )
-    db.close()
-    return render_template(
-        "admin.html",
-        users=all_users,
-        keys=all_keys,
-        current_user=user,
-        achievements=all_achievements,
-        grants=all_grants,
-        configs=all_configs,
-        config_grants=all_config_grants,
-        promos=all_promos,
-    )
+    try:
+        db = get_db()
+        ensure_user_config_downloads_table(db)
+        ensure_subscription_keys_table(db)
+        ensure_promo_codes_table(db)
+        # на случай старой БД без таблиц конфигов/ачивок — не падаем 500, покажем пусто
+        try:
+            all_users = fetchall(db, "SELECT * FROM users ORDER BY id DESC")
+        except Exception as e:
+            print(f"[admin_panel users fetch error]: {e}")
+            traceback.print_exc()
+            _rollback_if_needed(db)
+            all_users = []
+        try:
+            all_keys = fetchall(db, "SELECT * FROM subscription_keys ORDER BY id DESC")
+        except Exception as e:
+            print(f"[admin_panel keys fetch error]: {e}")
+            traceback.print_exc()
+            _rollback_if_needed(db)
+            all_keys = []
+        try:
+            all_achievements = fetchall(db, "SELECT * FROM achievements ORDER BY id DESC")
+        except Exception as e:
+            print(f"[admin_panel achievements fetch error]: {e}")
+            traceback.print_exc()
+            _rollback_if_needed(db)
+            all_achievements = []
+        for a in all_achievements:
+            a["image_url"] = normalize_achievement_image_url(a.get("image_url"))
+        try:
+            all_configs = fetchall(db, "SELECT * FROM configs ORDER BY id DESC")
+        except Exception as e:
+            print(f"[admin_panel configs fetch error]: {e}")
+            traceback.print_exc()
+            _rollback_if_needed(db)
+            all_configs = []
+        for c in all_configs:
+            c["images"] = config_images_list(c)
+        try:
+            all_promos = fetchall(db, "SELECT * FROM promo_codes ORDER BY id DESC")
+        except Exception as e:
+            print(f"[admin_panel promos fetch error]: {e}")
+            traceback.print_exc()
+            _rollback_if_needed(db)
+            all_promos = []
+        try:
+            all_grants = fetchall(
+                db,
+                """
+                SELECT ua.id AS user_achievement_id, ua.granted_at,
+                       u.username, u.id AS user_id,
+                       a.name AS achievement_name, a.code AS achievement_code, a.id AS achievement_id
+                FROM user_achievements ua
+                JOIN users u ON u.id = ua.user_id
+                JOIN achievements a ON a.id = ua.achievement_id
+                ORDER BY ua.granted_at DESC
+                """,
+            )
+        except Exception as e:
+            print(f"[admin_panel grants fetch error]: {e}")
+            traceback.print_exc()
+            _rollback_if_needed(db)
+            all_grants = []
+        try:
+            all_config_grants = fetchall(
+                db,
+                """
+                SELECT ucd.id AS grant_id, ucd.granted_at,
+                       u.username, u.id AS user_id,
+                       c.name AS config_name, c.id AS config_id, c.price AS config_price
+                FROM user_config_downloads ucd
+                JOIN users u ON u.id = ucd.user_id
+                JOIN configs c ON c.id = ucd.config_id
+                ORDER BY ucd.granted_at DESC
+                """,
+            )
+        except Exception as e:
+            print(f"[admin_panel config_grants fetch error]: {e}")
+            traceback.print_exc()
+            _rollback_if_needed(db)
+            all_config_grants = []
+        try:
+            db.close()
+        except Exception:
+            pass
+        return render_template(
+            "admin.html",
+            users=all_users,
+            keys=all_keys,
+            current_user=user,
+            achievements=all_achievements,
+            grants=all_grants,
+            configs=all_configs,
+            config_grants=all_config_grants,
+            promos=all_promos,
+        )
+    except Exception as e:
+        print(f"[admin_panel unexpected]: {e}")
+        traceback.print_exc()
+        try:
+            _rollback_if_needed(get_db())
+        except Exception:
+            pass
+        flash(f"Ошибка загрузки админки: {e}", "error")
+        return redirect(url_for("profile"))
 
 
 @app.route("/admin/create_user", methods=["POST"])
@@ -1455,37 +1729,51 @@ def admin_create_user():
         flash("Логин и пароль обязательны!", "error")
         return redirect(url_for("admin_panel"))
 
-    db = get_db()
-    existing = fetchone(db, "SELECT id FROM users WHERE username = %s", (username,))
-    if existing:
-        db.close()
-        flash("Пользователь с таким логином уже существует!", "error")
-        return redirect(url_for("admin_panel"))
+    try:
+        db = get_db()
+        existing = fetchone(db, "SELECT id FROM users WHERE username = %s", (username,))
+        if existing:
+            db.close()
+            flash("Пользователь с таким логином уже существует!", "error")
+            return redirect(url_for("admin_panel"))
 
-    now = datetime.utcnow().isoformat()
-    execute(
-        db,
-        """
-        INSERT INTO users (username, password_hash, password_plain, role, status, created_at, is_admin, plan)
-        VALUES (%s, %s, %s, %s, %s, %s, %s, %s)
-        """,
-        (username, generate_password_hash(password), password, "User", "active", now, False, None),
-    )
+        now = datetime.utcnow().isoformat()
+        execute(
+            db,
+            """
+            INSERT INTO users (username, password_hash, password_plain, role, status, created_at, is_admin, plan)
+            VALUES (%s, %s, %s, %s, %s, %s, %s, %s)
+            """,
+            (username, generate_password_hash(password), password, "User", "active", now, False, None),
+        )
 
-    new_user = fetchone(db, "SELECT id FROM users WHERE username = %s", (username,))
+        new_user = fetchone(db, "SELECT id FROM users WHERE username = %s", (username,))
 
-    if raw_days and new_user:
-        ok, msg = apply_subscription_days(db, new_user["id"], raw_days)
-        db.close()
-        if ok:
-            flash(f"Пользователь «{username}» создан! {msg}", "success")
+        if raw_days and new_user:
+            ok, msg = apply_subscription_days(db, new_user["id"], raw_days)
+            db.close()
+            if ok:
+                flash(f"Пользователь «{username}» создан! {msg}", "success")
+            else:
+                flash(f"Пользователь «{username}» создан, но подписку выдать не удалось: {msg}", "warning")
         else:
-            flash(f"Пользователь «{username}» создан, но подписку выдать не удалось: {msg}", "warning")
-    else:
-        db.close()
-        flash(f"Пользователь «{username}» создан!", "success")
+            db.close()
+            flash(f"Пользователь «{username}» создан!", "success")
 
-    return redirect(url_for("admin_panel"))
+        return redirect(url_for("admin_panel"))
+    except Exception as e:
+        print(f"[admin_create_user error]: {e}")
+        traceback.print_exc()
+        try:
+            _rollback_if_needed(db)
+        except Exception:
+            pass
+        try:
+            db.close()
+        except Exception:
+            pass
+        flash(f"Внутренняя ошибка при создании пользователя: {e}", "error")
+        return redirect(url_for("admin_panel"))
 
 
 @app.route("/admin/achievements/create", methods=["POST"])
@@ -1600,85 +1888,114 @@ def admin_action():
         flash("Ошибка: Не указан ID пользователя или действие!", "error")
         return redirect(url_for("admin_panel"))
 
-    db = get_db()
+    db = None
+    try:
+        db = get_db()
+    except Exception as e:
+        print(f"[admin_action get_db error]: {e}")
+        traceback.print_exc()
+        flash(f"Ошибка БД: {e}", "error")
+        return redirect(url_for("admin_panel"))
 
     try:
         target_id = int(target_id)
     except ValueError:
         flash("Ошибка: Некорректный ID пользователя!", "error")
-        db.close()
+        try:
+            db.close()
+        except Exception:
+            pass
         return redirect(url_for("admin_panel"))
 
     # Не даём администратору банить/замораживать самого себя,
     # чтобы он не заблокировал свой же доступ к панели.
     if target_id == user.get("id") and action in ("ban", "freeze"):
-        db.close()
+        try:
+            db.close()
+        except Exception:
+            pass
         flash("Нельзя забанить или заморозить самого себя!", "warning")
         return redirect(url_for("admin_panel"))
 
-    if action == "ban":
-        execute(db, "UPDATE users SET status = 'banned' WHERE id = %s", (target_id,))
-        flash("Пользователь заблокирован!", "success")
+    try:
+        if action == "ban":
+            execute(db, "UPDATE users SET status = 'banned' WHERE id = %s", (target_id,))
+            flash("Пользователь заблокирован!", "success")
 
-    elif action == "unban":
-        execute(db, "UPDATE users SET status = 'active' WHERE id = %s", (target_id,))
-        flash("Пользователь разблокирован!", "success")
+        elif action == "unban":
+            execute(db, "UPDATE users SET status = 'active' WHERE id = %s", (target_id,))
+            flash("Пользователь разблокирован!", "success")
 
-    elif action == "unfreeze":
-        execute(db, "UPDATE users SET status = 'active' WHERE id = %s", (target_id,))
-        flash("Подписка разморожена!", "success")
+        elif action == "unfreeze":
+            execute(db, "UPDATE users SET status = 'active' WHERE id = %s", (target_id,))
+            flash("Подписка разморожена!", "success")
 
-    elif action == "add_days":
-        raw_days = str(request.form.get("days") or request.form.get("sub_days") or "").strip().lower()
-        if not raw_days:
-            flash("Ошибка: Укажите число дней (например, 30 или 120)!", "error")
+        elif action == "add_days":
+            raw_days = str(request.form.get("days") or request.form.get("sub_days") or "").strip().lower()
+            if not raw_days:
+                flash("Ошибка: Укажите число дней (например, 30 или 120)!", "error")
+            else:
+                ok, msg = apply_subscription_days(db, target_id, raw_days)
+                flash(msg, "success" if ok else "error")
+
+        elif action == "freeze":
+            execute(db, "UPDATE users SET status = 'frozen' WHERE id = %s", (target_id,))
+            flash("Подписка заморожена!", "warning")
+
+        elif action == "reset_hwid":
+            execute(db, "UPDATE users SET hwid = NULL WHERE id = %s", (target_id,))
+            flash("HWID пользователя успешно сброшен!", "success")
+
+        elif action == "change_password":
+            new_password = request.form.get("new_password", "")
+            if not new_password:
+                flash("Ошибка: Новый пароль не может быть пустым!", "error")
+            else:
+                execute(
+                    db,
+                    "UPDATE users SET password_hash = %s, password_plain = %s WHERE id = %s",
+                    (generate_password_hash(new_password), new_password, target_id),
+                )
+                flash("Пароль пользователя успешно изменён!", "success")
+
+        elif action == "delete":
+            target = fetchone(db, "SELECT username FROM users WHERE id = %s", (target_id,))
+            if not target:
+                flash("Ошибка: Пользователь не найден!", "error")
+            else:
+                ensure_user_config_downloads_table(db)
+                execute(db, "DELETE FROM user_config_downloads WHERE user_id = %s", (target_id,))
+                execute(db, "DELETE FROM users WHERE id = %s", (target_id,))
+                flash(f"Пользователь {target['username']} удалён навсегда!", "success")
+                if user.get("id") == target_id:
+                    session.clear()
+                    try:
+                        db.close()
+                    except Exception:
+                        pass
+                    return redirect(url_for("login"))
+
+        elif action == "make_admin":
+            execute(db, "UPDATE users SET is_admin = TRUE WHERE id = %s", (target_id,))
+            flash("Пользователю выданы права администратора!", "success")
+
+        elif action == "remove_admin":
+            execute(db, "UPDATE users SET is_admin = FALSE WHERE id = %s", (target_id,))
+            flash("Права администратора отозваны!", "success")
+
         else:
-            ok, msg = apply_subscription_days(db, target_id, raw_days)
-            flash(msg, "success" if ok else "error")
+            flash("Неизвестное действие!", "error")
 
-    elif action == "freeze":
-        execute(db, "UPDATE users SET status = 'frozen' WHERE id = %s", (target_id,))
-        flash("Подписка заморожена!", "warning")
+    except Exception as e:
+        print(f"[admin_action error action={action}]: {e}")
+        traceback.print_exc()
+        _rollback_if_needed(db)
+        flash(f"Внутренняя ошибка при выполнении «{action}»: {e}", "error")
 
-    elif action == "reset_hwid":
-        execute(db, "UPDATE users SET hwid = NULL WHERE id = %s", (target_id,))
-        flash("HWID пользователя успешно сброшен!", "success")
-
-    elif action == "change_password":
-        new_password = request.form.get("new_password", "")
-        if not new_password:
-            flash("Ошибка: Новый пароль не может быть пустым!", "error")
-        else:
-            execute(
-                db,
-                "UPDATE users SET password_hash = %s, password_plain = %s WHERE id = %s",
-                (generate_password_hash(new_password), new_password, target_id),
-            )
-            flash("Пароль пользователя успешно изменён!", "success")
-
-    elif action == "delete":
-        target = fetchone(db, "SELECT username FROM users WHERE id = %s", (target_id,))
-        if not target:
-            flash("Ошибка: Пользователь не найден!", "error")
-        else:
-            ensure_user_config_downloads_table(db)
-            execute(db, "DELETE FROM user_config_downloads WHERE user_id = %s", (target_id,))
-            execute(db, "DELETE FROM users WHERE id = %s", (target_id,))
-            flash(f"Пользователь {target['username']} удалён навсегда!", "success")
-            if user.get("id") == target_id:
-                session.clear()
-                db.close()
-                return redirect(url_for("login"))
-
-    elif action == "make_admin":
-        execute(db, "UPDATE users SET is_admin = TRUE WHERE id = %s", (target_id,))
-        flash("Пользователю выданы права администратора!", "success")
-
-    elif action == "remove_admin":
-        execute(db, "UPDATE users SET is_admin = FALSE WHERE id = %s", (target_id,))
-        flash("Права администратора отозваны!", "success")
-
-    db.close()
+    try:
+        db.close()
+    except Exception:
+        pass
     return redirect(url_for("admin_panel"))
 
 
@@ -1689,31 +2006,60 @@ def admin_generate_key():
         return "Доступ запрещен", 403
 
     raw_days = str(request.form.get("days", "")).strip().lower()
+    # нормализуем "30 дней" -> "30"
+    if " " in raw_days:
+        raw_days = raw_days.split()[0].strip()
     if not raw_days:
         flash("Укажите срок подписки для ключа (например, 30 или forever)!", "error")
         return redirect(url_for("admin_panel"))
 
-    if not (raw_days in ["forever", "навсегда"] or (raw_days.isdigit() and int(raw_days) > 0)):
-        flash("Некорректный срок подписки для ключа!", "error")
+    if not (raw_days in ["forever", "навсегда", "lifetime"] or (raw_days.isdigit() and int(raw_days) > 0)):
+        flash("Некорректный срок подписки для ключа! Укажите число дней или forever.", "error")
         return redirect(url_for("admin_panel"))
 
-    plan_name = "Lifetime" if raw_days in ["forever", "навсегда"] else f"{raw_days} дней"
+    if raw_days in ["навсегда", "lifetime"]:
+        raw_days = "forever"
+    plan_name = "Lifetime" if raw_days == "forever" else f"{raw_days} дней"
 
-    db = get_db()
-    key_code = generate_subscription_key()
-    while fetchone(db, "SELECT id FROM subscription_keys WHERE key_code = %s", (key_code,)):
+    try:
+        db = get_db()
+        ensure_subscription_keys_table(db)
         key_code = generate_subscription_key()
+        # защита от бесконечного цикла при редком коллизионном ключе
+        for _ in range(10):
+            try:
+                if not fetchone(db, "SELECT id FROM subscription_keys WHERE key_code = %s", (key_code,)):
+                    break
+            except Exception as e:
+                print(f"[generate_key fetch check error]: {e}")
+                traceback.print_exc()
+                _rollback_if_needed(db)
+                break
+            key_code = generate_subscription_key()
 
-    execute(
-        db,
-        "INSERT INTO subscription_keys (key_code, days, plan_name, is_used, created_at) "
-        "VALUES (%s, %s, %s, %s, %s)",
-        (key_code, raw_days, plan_name, False, datetime.utcnow().isoformat()),
-    )
-    db.close()
+        execute(
+            db,
+            "INSERT INTO subscription_keys (key_code, days, plan_name, is_used, created_at) "
+            "VALUES (%s, %s, %s, %s, %s)",
+            (key_code, raw_days, plan_name, False, datetime.utcnow().isoformat()),
+        )
+        db.close()
 
-    flash(f"Ключ создан: {key_code} ({plan_name})", "success")
-    return redirect(url_for("admin_panel"))
+        flash(f"Ключ создан: {key_code} ({plan_name})", "success")
+        return redirect(url_for("admin_panel"))
+    except Exception as e:
+        print(f"[admin_generate_key error]: {e}")
+        traceback.print_exc()
+        try:
+            _rollback_if_needed(db)
+        except Exception:
+            pass
+        try:
+            db.close()
+        except Exception:
+            pass
+        flash(f"Внутренняя ошибка при создании ключа: {e}", "error")
+        return redirect(url_for("admin_panel"))
 
 
 @app.route("/admin/delete_key", methods=["POST"])
@@ -2213,6 +2559,48 @@ def admin_revoke_achievement():
         flash("Достижение отозвано!", "success")
 
     return redirect(url_for("admin_panel"))
+
+
+@app.errorhandler(500)
+def handle_500(e):
+    # Вместо белого экрана 500 — лог и понятный редирект с флешем
+    print(f"[500 error]: {e}")
+    traceback.print_exc()
+    try:
+        _rollback_if_needed(get_db())
+    except Exception:
+        pass
+    # если запрос шёл из профиля/админки — вернём туда с сообщением
+    flash(f"Внутренняя ошибка сервера: {e}. Попробуйте ещё раз.", "error")
+    try:
+        if request.path.startswith("/admin"):
+            return redirect(url_for("admin_panel"))
+        if request.path.startswith("/profile"):
+            return redirect(url_for("profile"))
+    except Exception:
+        pass
+    return redirect(url_for("profile"))
+
+
+@app.errorhandler(Exception)
+def handle_exception(e):
+    # Ловим любые непойманные исключения (Flask в проде иначе вернёт 500 без лога)
+    # Не перехватываем HTTPException (404 и т.п.)
+    from werkzeug.exceptions import HTTPException
+    if isinstance(e, HTTPException):
+        return e
+    print(f"[unhandled exception {request.path}]: {e}")
+    traceback.print_exc()
+    try:
+        _rollback_if_needed(get_db())
+    except Exception:
+        pass
+    flash(f"Внутренняя ошибка: {e}", "error")
+    try:
+        referrer = request.referrer or url_for("profile")
+        return redirect(referrer)
+    except Exception:
+        return redirect(url_for("profile"))
 
 
 if __name__ == "__main__":
