@@ -499,7 +499,7 @@
                                 <span class="admin-badge badge-active">✔ Активен</span>
                             {% endif %}
                             <span class="user-meta-item">
-                                {% if u.expires_at == 'forever' %}
+                                {% if u.expires_at == 'forever' or (u.expires_at and '9999-12-31' in u.expires_at|string) %}
                                     <span class="badge-forever">∞ Навсегда</span>
                                 {% elif u.expires_at %}
                                     <span class="badge-sub">до {{ u.expires_at[:16].replace('T', ' ') }}</span>
