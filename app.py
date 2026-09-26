@@ -127,11 +127,11 @@ if GOOGLE_CLIENT_ID and GOOGLE_CLIENT_SECRET:
         client_kwargs={"scope": "openid email profile"},
     )
 
-TELEGRAM_ADMIN_URL = os.environ.get("TELEGRAM_ADMIN_URL", "https://t.me/MrDarkoDv")
+TELEGRAM_ADMIN_URL = os.environ.get("TELEGRAM_ADMIN_URL", "https://t.me/MrStalk3ryoo")
 
 LAUNCHER_URL = os.environ.get(
     "LAUNCHER_URL",
-    "https://www.dropbox.com/scl/fi/demam03yn86ra30uthiwm/DarkVisualsLauncher.exe?rlkey=ygyy9cwlsixm5998khcm5brhu&st=2y9ox2z2&dl=0",
+    "https://drive.google.com/file/d/1q8B80YUVH4IIlENfApl_cqVHhvYXH9XS/view?usp=sharing",
 )
 
 FUNPAY_LINKS = {
