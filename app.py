@@ -135,7 +135,6 @@ LAUNCHER_URL = os.environ.get(
 )
 
 FUNPAY_LINKS = {
-    "hwid_reset": "https://funpay.com/lots/offer?id=77075919",
     "custom_achievement": "https://funpay.com/lots/offer?id=77075919",
     "1_month": "https://funpay.com/lots/offer?id=77075709",
     "120_days": "https://funpay.com/lots/offer?id=77075608",
@@ -174,15 +173,6 @@ PLANS = {
             "Вечный доступ без ограничений",
             "Приоритетные обновления",
             "VIP Поддержка",
-        ],
-    },
-    "hwid_reset": {
-        "name": "Сброс HWID",
-        "price": "100 ₽",
-        "period": "Разовая услуга",
-        "image": "img/plan_banner.png",
-        "features": [
-            "Сбрасывает ваш HWID",
         ],
     },
     "custom_achievement": {
@@ -1582,6 +1572,20 @@ def profile():
         launcher_url=LAUNCHER_URL,
         configs=all_configs,
     )
+
+
+@app.route("/profile/reset_hwid", methods=["POST"])
+def reset_own_hwid():
+    user = current_user()
+    if not user:
+        return redirect(url_for("login"))
+
+    db = get_db()
+    execute(db, "UPDATE users SET hwid = NULL WHERE id = %s", (user["id"],))
+    db.close()
+
+    flash("HWID сброшен. При следующем запуске лаунчера устройство будет привязано заново.", "success")
+    return redirect(url_for("profile"))
 
 
 @app.route("/profile/change_password", methods=["POST"])
