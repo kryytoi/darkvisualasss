@@ -753,7 +753,22 @@ function toggleUserList() {
 (function () {
     var saved = null;
     try { saved = localStorage.getItem('dv-admin-users-collapsed'); } catch (e) {}
-    if (saved === '1') toggleUserList();
+    // По умолчанию список свёрнут. Раскрытое состояние сохраняется только
+    // после явного выбора «Показать список».
+    var controls = document.getElementById('userMgmtControls');
+    var btn = document.getElementById('userListToggle');
+    if (controls && btn && saved === '0') {
+        controls.classList.remove('collapsed');
+        btn.classList.remove('collapsed');
+        btn.querySelector('.user-list-toggle-text').textContent = 'Свернуть список';
+        btn.querySelector('.user-list-toggle-icon').textContent = '▼';
+    } else if (controls && btn) {
+        controls.classList.add('collapsed');
+        btn.classList.add('collapsed');
+        btn.querySelector('.user-list-toggle-text').textContent = 'Показать список';
+        btn.querySelector('.user-list-toggle-icon').textContent = '▲';
+        try { localStorage.setItem('dv-admin-users-collapsed', '1'); } catch (e) {}
+    }
 })();
 </script>
 {% endblock %}
