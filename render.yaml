@@ -4,11 +4,15 @@ services:
     env: python
     plan: free
     buildCommand: "pip install -r requirements.txt"
-    startCommand: "gunicorn app:app"
+    # 1 sync-воркер блокировал все запросы, пока один ждал БД. Несколько воркеров + потоки.
+    startCommand: "gunicorn app:app --workers 2 --threads 4 --timeout 30 --keep-alive 5"
+    healthCheckPath: /healthz
     envVars:
       - key: SECRET_KEY
         generateValue: true
       - key: ADMIN_KEY
+        sync: false
+      - key: ADMIN_INITIAL_PASSWORD
         sync: false
       - key: LAUNCHER_URL
         sync: false

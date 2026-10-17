@@ -3,7 +3,10 @@
   "builds": [
     {
       "src": "app.py",
-      "use": "@vercel/python"
+      "use": "@vercel/python",
+      "config": {
+        "excludeFiles": "{static/darkvisuals.enc,static/*.jar,api/img/**,changes/**,.git/**}"
+      }
     },
     {
       "src": "static/**",
@@ -16,19 +19,21 @@
   ],
   "routes": [
     {
-      "src": "/static/(.*)",
-      "headers": {
-        "Cache-Control": "public, max-age=31536000, immutable"
-      },
-      "dest": "/static/$1"
+      "src": "/darkvisuals.enc",
+      "headers": { "Cache-Control": "public, max-age=3600" },
+      "dest": "/static/darkvisuals.enc"
     },
     {
-      "src": "/api/img/(.*)",
-      "headers": {
-        "Cache-Control": "public, max-age=31536000, immutable"
-      },
-      "dest": "/api/img/$1"
+      "src": "/static/(.*)",
+      "headers": { "Cache-Control": "public, max-age=31536000, immutable" },
+      "continue": true
     },
+    {
+      "src": "/api/img/([0-9a-f]{32}\\.(?:png|jpg|jpeg|gif|webp))",
+      "headers": { "Cache-Control": "public, max-age=31536000, immutable" },
+      "continue": true
+    },
+    { "handle": "filesystem" },
     {
       "src": "/(.*)",
       "dest": "app.py"

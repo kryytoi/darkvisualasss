@@ -2,19 +2,27 @@
 
 Fabric 1.21.4 PvP-мод: сайт с регистрацией, профилем и статусом подписки.
 
-## Деплой на Render
-1. Залей всю папку в свой репозиторий (например kryytoi/WDdwdw), в корень или в подпапку.
-2. На render.com: New -> Blueprint -> выбери репозиторий (подхватит render.yaml)
-   ИЛИ New -> Web Service вручную:
-   - Build Command: `pip install -r requirements.txt`
-   - Start Command: `gunicorn app:app`
-3. Обязательно добавь Persistent Disk (Render -> Disks), путь `/opt/render/project/src/data`,
-   и переменную окружения `DATA_DIR=/opt/render/project/src/data`.
-   Без диска база данных будет удаляться при каждом новом деплое!
-4. Задай переменные окружения:
-   - `SECRET_KEY` — любая случайная строка
-   - `ADMIN_KEY` — секретный ключ для активации подписок
-   - `LAUNCHER_URL` — прямая ссылка на .exe/.jar лаунчера (например GitHub Release)
+## Деплой (Vercel или Render)
+Нужен **Postgres** (Neon). Регион БД должен совпадать с регионом сервера
+(в `vercel.json` это `fra1` → Neon в `eu-central-1`, Frankfurt), иначе каждый запрос ходит через океан.
+Для Neon используй строку подключения **с `-pooler`** в хосте.
+
+Переменные окружения:
+- `DATABASE_URL` — строка подключения Postgres (обязательно);
+- `SECRET_KEY` — случайная строка (**обязательно**, без неё сервер не стартует в проде);
+- `MOD_AES_KEY_BASE64`, `MOD_AES_IV_BASE64`, `MOD_FILE_URL` — ключи и ссылка на мод;
+- `ADMIN_INITIAL_PASSWORD` — пароль для первого админа `admin` (создаётся только при миграции);
+- `LAUNCHER_URL` — ссылка на лаунчер; `ADMIN_KEY` — ключ ручной активации;
+- `MOD_KEY_REQUIRE_TOKEN=0` — (не рекомендуется) отключить проверку sessionToken в `/api/mod-key`.
+
+Миграции БД (создание таблиц, удаление колонки `password_plain`) на Vercel по умолчанию пропускаются.
+После обновления схемы выставь `RUN_DB_INIT=1`, задеплой и открой любую страницу один раз, затем убери переменную.
+
+Render: Build `pip install -r requirements.txt`, Start `gunicorn app:app --workers 2 --threads 4 --timeout 30`.
+Бесплатный план Render засыпает после 15 минут простоя — для стабильного пинга нужен платный план.
+
+Иконки и фото, загруженные в админке, хранятся в Postgres (таблица `uploaded_images`, до 2 МБ) и доступны сразу.
+Файл `darkvisuals.enc` лучше раздавать через CDN / GitHub Release, а не из функции.
 
 ## Активация подписки после оплаты
 Пока нет автоматической оплаты, активируй вручную:

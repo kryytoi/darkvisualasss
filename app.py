@@ -5,10 +5,13 @@ import string
 import sqlite3
 import base64
 import uuid
+import re
+import time
+import threading
 import traceback
 import requests
 from werkzeug.utils import secure_filename
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 import psycopg2
 from psycopg2.extras import RealDictCursor
 from itsdangerous import URLSafeTimedSerializer, BadSignature, SignatureExpired
@@ -25,6 +28,7 @@ from flask import (
     send_from_directory,
     g,
     has_app_context,
+    Response,
 )
 from werkzeug.security import generate_password_hash, check_password_hash
 
@@ -32,11 +36,25 @@ from werkzeug.middleware.proxy_fix import ProxyFix  # добавь к остал
 
 app = Flask(__name__)
 
+
+def _utcnow():
+    """Наивное UTC-время (datetime.utcnow() устарел в Python 3.12)."""
+    return datetime.now(timezone.utc).replace(tzinfo=None)
+
+
 # Vercel/Render терминируют HTTPS на прокси — говорим Flask доверять заголовкам прокси,
 # иначе он считает соединение http и Secure-кука сессии не сохраняется.
-app.wsgi_app = ProxyFix(app.wsgi_app, x_proto=1, x_host=1)
+app.wsgi_app = ProxyFix(app.wsgi_app, x_for=1, x_proto=1, x_host=1)
 
-app.secret_key = os.environ.get("SECRET_KEY", "dark_visuals_super_secret_key_2026")
+_IS_PROD = bool(os.environ.get("VERCEL") or os.environ.get("RENDER"))
+_secret = os.environ.get("SECRET_KEY")
+if not _secret:
+    if _IS_PROD:
+        # Публичный ключ по умолчанию позволил бы подделывать сессии (в т.ч. админа).
+        raise RuntimeError("SECRET_KEY не задан! Добавь случайную строку в переменные окружения.")
+    _secret = "dev-only-secret-key-do-not-use-in-prod"
+app.secret_key = _secret
+
 
 session_serializer = URLSafeTimedSerializer(app.secret_key, salt="darkvisuals-mod-session")
 
@@ -49,7 +67,7 @@ app.config["SESSION_COOKIE_SECURE"] = True  # на Vercel всегда HTTPS
 
 # Версия статики для cache-busting: меняй при каждом изменении css/js,
 # чтобы браузеры с кэшем подхватили новую версию (ссылки вида style.css?v=20260917b).
-STATIC_VERSION = os.environ.get("STATIC_VERSION", "20260919b")
+STATIC_VERSION = os.environ.get("STATIC_VERSION", "20261017a")
 
 
 @app.context_processor
@@ -63,6 +81,8 @@ def compress_response(resp):
     после сжатия это ~6-8 КБ, что заметно сокращает время загрузки.
     """
     try:
+        if os.environ.get("VERCEL") == "1":
+            return resp
         if resp.direct_passthrough or resp.status_code < 200 or resp.status_code >= 300:
             return resp
         if "gzip" not in (request.headers.get("Accept-Encoding") or "").lower():
@@ -186,10 +206,11 @@ PLANS = {
     },
 }
 
-MOD_AES_KEY_BASE64 = os.environ.get(
-    "MOD_AES_KEY_BASE64", "ZmFrZWtleWZvcmRlbW9uc3RyYXRpb24xMjM0NTY3ODk="
-)
-MOD_AES_IV_BASE64 = os.environ.get("MOD_AES_IV_BASE64", "ZmFrZWl2Zm9yZGVtbzEyMw==")
+MOD_AES_KEY_BASE64 = os.environ.get("MOD_AES_KEY_BASE64", "")
+MOD_AES_IV_BASE64 = os.environ.get("MOD_AES_IV_BASE64", "")
+# /api/mod-key требует валидный sessionToken (его лаунчер получает из /api/login).
+# MOD_KEY_REQUIRE_TOKEN=0 — временно отключить проверку (не рекомендуется).
+REQUIRE_MOD_KEY_TOKEN = os.environ.get("MOD_KEY_REQUIRE_TOKEN", "1") != "0"
 MOD_FILE_URL = os.environ.get(
     "MOD_FILE_URL",
     "https://raw.githubusercontent.com/kryytoi/WDdwdw/refs/heads/main/darkvisuals.enc",
@@ -209,13 +230,36 @@ def allowed_icon_file(filename):
     return "." in filename and filename.rsplit(".", 1)[1].lower() in ALLOWED_ICON_EXTENSIONS
 
 
+MAX_UPLOAD_BYTES = 2 * 1024 * 1024
+_IMG_NAME_RE = re.compile(r"^[0-9a-f]{32}\.(png|jpg|jpeg|gif|webp)$")
+_IMG_MIME = {"png": "image/png", "jpg": "image/jpeg", "jpeg": "image/jpeg", "gif": "image/gif", "webp": "image/webp"}
+_uploaded_images_ready = False
+
+
+def ensure_uploaded_images_table(db):
+    """Таблица для загруженных иконок (раньше они коммитились в GitHub и ждали редеплоя)."""
+    global _uploaded_images_ready
+    if _uploaded_images_ready:
+        return
+    if os.environ.get("DATABASE_URL"):
+        ddl = (
+            "CREATE TABLE IF NOT EXISTS uploaded_images ("
+            "name VARCHAR(80) PRIMARY KEY, mime VARCHAR(40) NOT NULL, data BYTEA NOT NULL, created_at TEXT)"
+        )
+    else:
+        ddl = (
+            "CREATE TABLE IF NOT EXISTS uploaded_images ("
+            "name TEXT PRIMARY KEY, mime TEXT NOT NULL, data BLOB NOT NULL, created_at TEXT)"
+        )
+    execute(db, ddl)
+    _uploaded_images_ready = True
+
+
 def upload_image_to_github(file_storage):
     """
-    Загружает картинку (иконка достижения или фото конфига) в репозиторий сайта
-    на GitHub через Contents API (в папку GITHUB_ACHIEVEMENTS_PATH, отдельную от
-    остальных файлов сайта), и возвращает прямую ссылку на файл для показа на сайте.
-
-    Возвращает (url, error_message). Если ошибка — url будет None.
+    Сохраняет картинку (иконка достижения / фото конфига) в БД и возвращает
+    (url, error). Имя функции оставлено для совместимости, GitHub больше не нужен:
+    картинка доступна сразу, без коммита и редеплоя.
     """
     if not file_storage or not file_storage.filename:
         return None, None
@@ -223,59 +267,42 @@ def upload_image_to_github(file_storage):
     if not allowed_icon_file(file_storage.filename):
         return None, "Недопустимый формат файла! Разрешены: png, jpg, jpeg, gif, webp."
 
-    original_name = secure_filename(file_storage.filename)
-    ext = original_name.rsplit(".", 1)[1].lower()
-    unique_name = f"{uuid.uuid4().hex}.{ext}"
-    repo_path = f"{GITHUB_ACHIEVEMENTS_PATH}/{unique_name}"
-
-    file_bytes = file_storage.read()
+    ext = secure_filename(file_storage.filename).rsplit(".", 1)[-1].lower()
+    file_bytes = file_storage.read(MAX_UPLOAD_BYTES + 1)
     if not file_bytes:
         return None, "Файл пустой!"
+    if len(file_bytes) > MAX_UPLOAD_BYTES:
+        return None, "Файл слишком большой (максимум 2 МБ)."
 
-    # Локальная разработка без GITHUB_TOKEN: сохраняем файл в api/img/ на диск,
-    # чтобы добавление картинок работало и вне продакшена.
-    if not GITHUB_TOKEN:
-        return _save_image_locally(unique_name, file_bytes)
-
-    content_b64 = base64.b64encode(file_bytes).decode("ascii")
-
-    api_url = f"https://api.github.com/repos/{GITHUB_REPO}/contents/{repo_path}"
-    headers = {
-        "Authorization": f"Bearer {GITHUB_TOKEN}",
-        "Accept": "application/vnd.github+json",
-    }
-    payload = {
-        "message": f"Add achievement icon {unique_name}",
-        "content": content_b64,
-        "branch": GITHUB_BRANCH,
-    }
-
+    unique_name = f"{uuid.uuid4().hex}.{ext}"
     try:
-        resp = requests.put(api_url, headers=headers, json=payload, timeout=20)
-    except requests.RequestException:
-        # GitHub недоступен (нет сети и т.п.) — пробуем сохранить локально,
-        # чтобы загрузка картинок не падала целиком.
-        return _save_image_locally(unique_name, file_bytes)
-
-    if resp.status_code not in (200, 201):
-        return None, f"GitHub вернул ошибку ({resp.status_code}): {resp.text[:200]}"
-
-    # Отдаём относительную ссылку на наш же домен: файл лежит в репозитории и
-    # раздаётся статикой с бесконечным кэшем (имя файла уникально).
+        db = get_db()
+        ensure_uploaded_images_table(db)
+        blob = psycopg2.Binary(file_bytes) if os.environ.get("DATABASE_URL") else sqlite3.Binary(file_bytes)
+        execute(
+            db,
+            "INSERT INTO uploaded_images (name, mime, data, created_at) VALUES (%s, %s, %s, %s)",
+            (unique_name, _IMG_MIME[ext], blob, _utcnow().isoformat()),
+        )
+    except Exception as e:
+        print(f"[upload_image error]: {e}")
+        traceback.print_exc()
+        return None, "Не удалось сохранить файл. Попробуйте ещё раз."
     return f"{ACHIEVEMENTS_PUBLIC_PREFIX}{unique_name}", None
 
 
-def _save_image_locally(unique_name, file_bytes):
-    """Фолбэк-сохранение картинки в api/img/ на диск (для локальной разработки)."""
+def delete_image_from_github(image_url):
+    """Удаляет загруженную иконку из БД (файлы из репозитория не трогаем). Ошибки игнорируются."""
+    if not image_url or not image_url.startswith(ACHIEVEMENTS_PUBLIC_PREFIX):
+        return
+    name = image_url[len(ACHIEVEMENTS_PUBLIC_PREFIX):]
+    if not _IMG_NAME_RE.match(name):
+        return
     try:
-        base = os.path.dirname(os.path.abspath(__file__))
-        local_dir = os.path.join(base, GITHUB_ACHIEVEMENTS_PATH)
-        os.makedirs(local_dir, exist_ok=True)
-        with open(os.path.join(local_dir, unique_name), "wb") as f:
-            f.write(file_bytes)
-        return f"{ACHIEVEMENTS_PUBLIC_PREFIX}{unique_name}", None
-    except OSError as e:
-        return None, f"Не удалось сохранить файл: {e}"
+        execute(get_db(), "DELETE FROM uploaded_images WHERE name = %s", (name,))
+    except Exception as e:
+        print(f"[delete_image error]: {e}")
+        _rollback_current()
 
 
 def normalize_achievement_image_url(image_url):
@@ -328,6 +355,9 @@ def ensure_user_config_downloads_table(db):
     """
     global _user_config_downloads_ready
     if _user_config_downloads_ready:
+        return
+    if not _should_init_db():
+        _user_config_downloads_ready = True
         return
     is_postgres = bool(os.environ.get("DATABASE_URL"))
     if is_postgres:
@@ -387,6 +417,9 @@ def ensure_promo_codes_table(db):
     """
     global _promo_codes_ready
     if _promo_codes_ready:
+        return
+    if not _should_init_db():
+        _promo_codes_ready = True
         return
     is_postgres = bool(os.environ.get("DATABASE_URL"))
     if is_postgres:
@@ -448,55 +481,20 @@ def discounted_price(price_str, discount_percent):
     return format_price_rub(round(base * (100 - percent) / 100))
 
 
-def delete_image_from_github(image_url):
-    """
-    Удаляет файл иконки из репозитория GitHub по его raw-ссылке,
-    если она указывает на нашу папку GITHUB_ACHIEVEMENTS_PATH.
-    Тихо игнорирует ошибки — удаление иконки не критично для удаления достижения.
-    """
-    if not image_url or not GITHUB_TOKEN:
-        return
-
-    filename = None
-    raw_prefix = f"https://raw.githubusercontent.com/{GITHUB_REPO}/{GITHUB_BRANCH}/{GITHUB_ACHIEVEMENTS_PATH}/"
-    if image_url.startswith(ACHIEVEMENTS_PUBLIC_PREFIX):
-        filename = image_url[len(ACHIEVEMENTS_PUBLIC_PREFIX):]
-    elif image_url.startswith(raw_prefix):
-        filename = image_url[len(raw_prefix):]
-
-    if not filename or "/" in filename:
-        return
-
-    repo_path = f"{GITHUB_ACHIEVEMENTS_PATH}/{filename}"
-    api_url = f"https://api.github.com/repos/{GITHUB_REPO}/contents/{repo_path}"
-    headers = {
-        "Authorization": f"Bearer {GITHUB_TOKEN}",
-        "Accept": "application/vnd.github+json",
-    }
-
-    try:
-        get_resp = requests.get(api_url, headers=headers, params={"ref": GITHUB_BRANCH}, timeout=15)
-        if get_resp.status_code != 200:
-            return
-        sha = get_resp.json().get("sha")
-        if not sha:
-            return
-        requests.delete(
-            api_url,
-            headers=headers,
-            json={"message": f"Remove achievement icon {repo_path}", "sha": sha, "branch": GITHUB_BRANCH},
-            timeout=15,
-        )
-    except requests.RequestException:
-        pass
-
-
 def _connect_db():
     db_url = os.environ.get("DATABASE_URL")
     if db_url:
         if db_url.startswith("postgres://"):
             db_url = db_url.replace("postgres://", "postgresql://", 1)
-        return psycopg2.connect(db_url, cursor_factory=RealDictCursor)
+        return psycopg2.connect(
+            db_url,
+            cursor_factory=RealDictCursor,
+            connect_timeout=5,
+            keepalives=1,
+            keepalives_idle=30,
+            keepalives_interval=10,
+            keepalives_count=3,
+        )
 
     # На Vercel SQLite не работает (read-only, эфемерная ФС)
     if os.environ.get("VERCEL") == "1":
@@ -510,16 +508,68 @@ def _connect_db():
     return conn
 
 
+# --- Пул соединений Postgres -------------------------------------------------
+# Раньше каждый запрос открывал новое подключение (TCP + TLS + auth = несколько
+# round-trip'ов до Neon). Теперь соединения переиспользуются между запросами
+# в рамках одного процесса/инстанса; «залежавшиеся» проверяются через SELECT 1
+# (Neon усыпляет compute и рвёт idle-соединения).
+_POOL_MAX = int(os.environ.get("DB_POOL_SIZE", "4"))
+_POOL_IDLE_CHECK = 20  # сек: после такого простоя соединение проверяем перед использованием
+_pool = []
+_pool_lock = threading.Lock()
+
+
+def _pool_checkout():
+    while True:
+        with _pool_lock:
+            item = _pool.pop() if _pool else None
+        if item is None:
+            return _connect_db()
+        conn, last_used = item
+        if conn.closed:
+            continue
+        if time.monotonic() - last_used > _POOL_IDLE_CHECK:
+            try:
+                cur = conn.cursor()
+                cur.execute("SELECT 1")
+                cur.close()
+                conn.rollback()
+            except Exception:
+                try:
+                    conn.close()
+                except Exception:
+                    pass
+                continue
+        return conn
+
+
+def _pool_checkin(conn):
+    try:
+        if conn.closed:
+            return
+        if conn.get_transaction_status() != psycopg2.extensions.TRANSACTION_STATUS_IDLE:
+            conn.rollback()
+        with _pool_lock:
+            if len(_pool) < _POOL_MAX:
+                _pool.append((conn, time.monotonic()))
+                return
+    except Exception:
+        pass
+    try:
+        conn.close()
+    except Exception:
+        pass
+
+
 class _SharedConnection:
     """
-    Обёртка над соединением: .close() ничего не делает, реальное закрытие
-    происходит один раз в конце запроса. Раньше каждая страница открывала
-    по 3-5 новых подключений к Postgres (у /admin — 4), и каждый TLS-хендшейк
-    добавлял сотни миллисекунд.
+    Обёртка над соединением: .close() ничего не делает, реальное освобождение
+    происходит один раз в конце запроса (соединение возвращается в пул).
     """
 
-    def __init__(self, conn):
+    def __init__(self, conn, pooled=False):
         self._conn = conn
+        self._pooled = pooled
 
     def __getattr__(self, name):
         return getattr(self._conn, name)
@@ -528,6 +578,9 @@ class _SharedConnection:
         return None
 
     def _real_close(self):
+        if self._pooled:
+            _pool_checkin(self._conn)
+            return
         try:
             self._conn.close()
         except Exception:
@@ -541,7 +594,10 @@ def get_db():
 
     shared = getattr(g, "_shared_db", None)
     if shared is None:
-        shared = _SharedConnection(_connect_db())
+        if os.environ.get("DATABASE_URL"):
+            shared = _SharedConnection(_pool_checkout(), pooled=True)
+        else:
+            shared = _SharedConnection(_connect_db())
         g._shared_db = shared
     return shared
 
@@ -551,6 +607,13 @@ def _close_shared_db(exc=None):
     shared = getattr(g, "_shared_db", None)
     if shared is not None:
         shared._real_close()
+
+
+def _rollback_current():
+    """Откат на уже открытом в этом запросе соединении (новое не открываем)."""
+    shared = getattr(g, "_shared_db", None) if has_app_context() else None
+    if shared is not None:
+        _rollback_if_needed(shared)
 
 
 def _rollback_if_needed(db):
@@ -653,7 +716,7 @@ def init_db():
         execute(db, "ALTER TABLE users ADD COLUMN IF NOT EXISTS expires_at TEXT;")
         execute(db, "ALTER TABLE users ADD COLUMN IF NOT EXISTS created_at TEXT;")
         execute(db, "ALTER TABLE users ADD COLUMN IF NOT EXISTS is_admin BOOLEAN DEFAULT FALSE;")
-        execute(db, "ALTER TABLE users ADD COLUMN IF NOT EXISTS password_plain TEXT;")
+        execute(db, "ALTER TABLE users DROP COLUMN IF EXISTS password_plain;")
         execute(db, "ALTER TABLE users ADD COLUMN IF NOT EXISTS google_id VARCHAR(64) UNIQUE;")
         execute(db, "ALTER TABLE users ADD COLUMN IF NOT EXISTS email VARCHAR(255);")
         execute(db, "ALTER TABLE users ADD COLUMN IF NOT EXISTS avatar_url TEXT;")
@@ -761,8 +824,7 @@ def init_db():
         )
 
         for ddl in (
-            "ALTER TABLE users ADD COLUMN password_plain TEXT;",
-            "ALTER TABLE users ADD COLUMN google_id TEXT UNIQUE;",
+            "ALTER TABLE users ADD COLUMN google_id TEXT;",
             "ALTER TABLE users ADD COLUMN email TEXT;",
             "ALTER TABLE users ADD COLUMN avatar_url TEXT;",
         ):
@@ -844,17 +906,26 @@ def init_db():
             """,
         )
 
+    execute(db, "CREATE INDEX IF NOT EXISTS idx_users_email ON users(email)")
+    if not is_postgres:
+        execute(db, "CREATE UNIQUE INDEX IF NOT EXISTS idx_users_google_id ON users(google_id)")
+    ensure_uploaded_images_table(db)
+
+    # Админа создаём только если явно задан ADMIN_INITIAL_PASSWORD (никаких admin/admin).
+    admin_password = os.environ.get("ADMIN_INITIAL_PASSWORD")
     admin = fetchone(db, "SELECT id FROM users WHERE username = %s", ("admin",))
-    if not admin:
-        now = datetime.utcnow().isoformat()
+    if not admin and admin_password:
+        now = _utcnow().isoformat()
         execute(
             db,
             """
-            INSERT INTO users (username, password_hash, password_plain, role, status, expires_at, created_at, is_admin, plan)
-            VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s)
+            INSERT INTO users (username, password_hash, role, status, expires_at, created_at, is_admin, plan)
+            VALUES (%s, %s, %s, %s, %s, %s, %s, %s)
             """,
-            ("admin", generate_password_hash("admin"), "admin", "Dev", "active", "forever", now, True, "Lifetime"),
+            ("admin", generate_password_hash(admin_password), "Dev", "active", "forever", now, True, "Lifetime"),
         )
+    elif not admin:
+        print("[init_db] Админ не создан: задай ADMIN_INITIAL_PASSWORD или выдай is_admin через БД.")
     db.close()
 
 
@@ -897,6 +968,9 @@ def ensure_subscription_keys_table(db):
     global _subscription_keys_ready
     if _subscription_keys_ready:
         return
+    if not _should_init_db():
+        _subscription_keys_ready = True
+        return
     is_postgres = bool(os.environ.get("DATABASE_URL"))
     try:
         if is_postgres:
@@ -935,6 +1009,7 @@ def ensure_subscription_keys_table(db):
     except Exception as e:
         print(f"[ensure_subscription_keys_table error]: {e}")
         traceback.print_exc()
+        _rollback_if_needed(db)
 
 
 FOREVER_ALIASES = {
@@ -1053,7 +1128,7 @@ def apply_subscription_days(db, target_id, raw_days):
         if not target_user:
             return False, "Пользователь не найден!"
 
-        now = datetime.utcnow()
+        now = _utcnow()
 
         cur_exp = None
         try:
@@ -1130,6 +1205,43 @@ def generate_achievement_code(name):
     return f"{base}_{suffix}"
 
 
+_fail_log = {}
+_fail_lock = threading.Lock()
+
+
+def _client_key(username):
+    return f"{request.remote_addr}:{(username or '').lower()[:64]}"
+
+
+def _login_blocked(key, limit=8, window=300):
+    """True, если с этого IP+логина было слишком много неудачных попыток за окно."""
+    now = time.monotonic()
+    with _fail_lock:
+        hits = [t for t in _fail_log.get(key, []) if now - t < window]
+        _fail_log[key] = hits
+        return len(hits) >= limit
+
+
+def _login_failed(key, window=300):
+    now = time.monotonic()
+    with _fail_lock:
+        _fail_log.setdefault(key, []).append(now)
+        if len(_fail_log) > 5000:
+            for k in list(_fail_log):
+                if not _fail_log[k] or now - _fail_log[k][-1] > window:
+                    _fail_log.pop(k, None)
+
+
+def _session_token_ok(token, username, hwid):
+    if not token or not username:
+        return False
+    try:
+        payload = session_serializer.loads(token, max_age=SESSION_TTL_SECONDS)
+    except (BadSignature, SignatureExpired):
+        return False
+    return payload.get("username") == username and payload.get("hwid") == hwid
+
+
 def validate_user_access(user, hwid_from_req):
     if user.get("status") == "banned":
         return False, "Ваш аккаунт заблокирован!"
@@ -1153,13 +1265,13 @@ def validate_user_access(user, hwid_from_req):
     try:
         exp_str = str(expires_at).replace("Z", "").strip()
         exp_date = datetime.fromisoformat(exp_str)
-        if exp_date.year >= 9000 or exp_date > datetime.utcnow():
+        if exp_date.year >= 9000 or exp_date > _utcnow():
             return True, None
         return False, "Ваша подписка истекла!"
     except (ValueError, TypeError):
         try:
             exp_date = datetime.strptime(str(expires_at)[:19], "%Y-%m-%d %H:%M:%S")
-            if exp_date.year >= 9000 or exp_date > datetime.utcnow():
+            if exp_date.year >= 9000 or exp_date > _utcnow():
                 return True, None
             return False, "Ваша подписка истекла!"
         except Exception:
@@ -1179,11 +1291,16 @@ def launcher_login():
     if not username or not password:
         return jsonify({"success": False, "message": "Заполните логин и пароль!"}), 400
 
+    rl_key = _client_key(username)
+    if _login_blocked(rl_key):
+        return jsonify({"success": False, "message": "Слишком много попыток. Подождите несколько минут."}), 429
+
     db = get_db()
     user = fetchone(db, "SELECT * FROM users WHERE username = %s", (username,))
 
     if not user or not check_password_hash(user["password_hash"], password):
         db.close()
+        _login_failed(rl_key)
         return jsonify({"success": False, "message": "Неверный логин или пароль!"}), 401
 
     is_valid, err_msg = validate_user_access(user, hwid)
@@ -1216,6 +1333,12 @@ def get_mod_key():
     if not username:
         return jsonify({"error": "Логин не указан"}), 400
 
+    if not (MOD_AES_KEY_BASE64 and MOD_AES_IV_BASE64):
+        return jsonify({"error": "Сервер не настроен (нет ключей мода)"}), 503
+
+    if REQUIRE_MOD_KEY_TOKEN and not _session_token_ok(data.get("sessionToken", ""), username, hwid):
+        return jsonify({"error": "Требуется авторизация (sessionToken)"}), 401
+
     db = get_db()
     user = fetchone(db, "SELECT * FROM users WHERE username = %s", (username,))
     db.close()
@@ -1244,11 +1367,23 @@ def achievement_image(filename):
     """
     base = os.path.dirname(os.path.abspath(__file__))
     directory = os.path.join(base, "api", "img")
-    # Фолбэк: старые ачивки могли ссылаться на картинки из static/img
     if not os.path.isfile(os.path.join(directory, filename)):
         fallback = os.path.join(base, "static", "img")
         if os.path.isfile(os.path.join(fallback, filename)):
             directory = fallback
+        elif _IMG_NAME_RE.match(filename):
+            # Загруженные через админку иконки лежат в БД
+            try:
+                row = fetchone(get_db(), "SELECT mime, data FROM uploaded_images WHERE name = %s", (filename,))
+            except Exception as e:
+                print(f"[achievement_image db error]: {e}")
+                _rollback_current()
+                row = None
+            if row:
+                resp = Response(bytes(row["data"]), mimetype=row["mime"])
+                resp.headers["Cache-Control"] = "public, max-age=31536000, immutable"
+                return resp
+            return "Not found", 404
     resp = send_from_directory(directory, filename, max_age=31536000)
     resp.headers["Cache-Control"] = "public, max-age=31536000, immutable"
     return resp
@@ -1260,7 +1395,14 @@ def download_mod_file():
     Запасной маршрут на случай, если rewrite из vercel.json не сработал:
     отдаём darkvisuals.enc из static/ (файл лежит в репозитории).
     """
-    return send_from_directory(app.static_folder or "static", "darkvisuals.enc")
+    # 24 МБ превышает лимит ответа serverless-функции Vercel (4.5 МБ) — отдаём как статику.
+    return redirect("/static/darkvisuals.enc", code=302)
+
+
+@app.route("/healthz")
+def healthz():
+    # Лёгкий эндпоинт без обращения к БД — для UptimeRobot / проверок.
+    return "ok", 200, {"Cache-Control": "no-store"}
 
 
 @app.route("/api/verify", methods=["POST"])
@@ -1333,12 +1475,17 @@ def login():
         username = request.form.get("username", "").strip()
         password = request.form.get("password", "")
 
+        rl_key = _client_key(username)
+        if _login_blocked(rl_key):
+            flash("Слишком много попыток входа. Подождите несколько минут.", "error")
+            return render_template("login.html")
+
         try:
             db = get_db()
             user = fetchone(db, "SELECT * FROM users WHERE username = %s", (username,))
             db.close()
         except Exception as e:
-            flash(f"Ошибка базы данных: {e}", "error")
+            print(f"[db error]: {e}"); flash("Ошибка базы данных. Попробуйте позже.", "error")
             return render_template("login.html")
 
         if user and check_password_hash(user["password_hash"], password):
@@ -1346,6 +1493,7 @@ def login():
             session["user_id"] = user["id"]
             return redirect(url_for("profile"))
 
+        _login_failed(rl_key)
         flash("Неверный логин или пароль", "error")
     return render_template("login.html")
 
@@ -1368,20 +1516,20 @@ def register():
                 flash("Пользователь с таким логином уже существует!", "error")
                 return render_template("login.html")
 
-            now = datetime.utcnow().isoformat()
+            now = _utcnow().isoformat()
             execute(
                 db,
                 """
-                INSERT INTO users (username, password_hash, password_plain, role, status, created_at)
-                VALUES (%s, %s, %s, %s, %s, %s)
+                INSERT INTO users (username, password_hash, role, status, created_at)
+                VALUES (%s, %s, %s, %s, %s)
                 """,
-                (username, generate_password_hash(password), password, "User", "active", now),
+                (username, generate_password_hash(password), "User", "active", now),
             )
 
             user = fetchone(db, "SELECT * FROM users WHERE username = %s", (username,))
             db.close()
         except Exception as e:
-            flash(f"Ошибка базы данных: {e}", "error")
+            print(f"[db error]: {e}"); flash("Ошибка базы данных. Попробуйте позже.", "error")
             return render_template("login.html")
 
         if user:
@@ -1445,7 +1593,7 @@ def google_callback():
                     suffix += 1
                     username = f"{base_username}{suffix}"
 
-                now = datetime.utcnow().isoformat()
+                now = _utcnow().isoformat()
                 random_password = secrets.token_hex(32)
                 execute(
                     db,
@@ -1469,7 +1617,7 @@ def google_callback():
 
         db.close()
     except Exception as e:
-        flash(f"Ошибка базы данных: {e}", "error")
+        print(f"[db error]: {e}"); flash("Ошибка базы данных. Попробуйте позже.", "error")
         return redirect(url_for("login"))
 
     if not user:
@@ -1507,7 +1655,7 @@ def profile():
             # отрезаем Z и миллисекунды если есть
             exp_str = str(expires_at).replace("Z", "").strip()
             exp_date = datetime.fromisoformat(exp_str)
-            now = datetime.utcnow()
+            now = _utcnow()
             if exp_date > now:
                 # далёкое будущее считаем forever
                 if exp_date.year >= 9000:
@@ -1525,7 +1673,7 @@ def profile():
             # попробуем старый формат через strptime
             try:
                 exp_date = datetime.strptime(str(expires_at)[:19], "%Y-%m-%d %H:%M:%S")
-                now = datetime.utcnow()
+                now = _utcnow()
                 if exp_date > now:
                     if exp_date.year >= 9000:
                         sub_info = {"active": True, "text": "Навсегда (Forever)", "days_left": "∞"}
@@ -1609,8 +1757,8 @@ def change_own_password():
     db = get_db()
     execute(
         db,
-        "UPDATE users SET password_hash = %s, password_plain = %s WHERE id = %s",
-        (generate_password_hash(new_password), new_password, user["id"]),
+        "UPDATE users SET password_hash = %s WHERE id = %s",
+        (generate_password_hash(new_password), user["id"]),
     )
     db.close()
 
@@ -1650,32 +1798,28 @@ def redeem_key():
             flash("Ключ не найден! Проверьте правильность ввода.", "error")
             return redirect(url_for("profile"))
 
-        # is_used может быть True/1/'t' — считаем любым truthy кроме 0/False/None
-        is_used_val = key_row.get("is_used")
-        if is_used_val not in (None, False, 0, "0", "f", "false", "False"):
-            # psycopg2 возвращает True/False, sqlite 0/1
-            if bool(is_used_val) is True or str(is_used_val).lower() in ("1", "true", "t"):
-                db.close()
-                flash("Этот ключ уже был активирован ранее!", "error")
-                return redirect(url_for("profile"))
+        # Атомарно «занимаем» ключ: при двух одновременных запросах выиграет только один.
+        claim = execute(
+            db,
+            "UPDATE subscription_keys SET is_used = %s, used_by = %s, used_at = %s "
+            "WHERE id = %s AND (is_used IS NULL OR is_used = %s)",
+            (True, user["username"], _utcnow().isoformat(), key_row["id"], False),
+        )
+        if getattr(claim, "rowcount", 0) != 1:
+            db.close()
+            flash("Этот ключ уже был активирован ранее!", "error")
+            return redirect(url_for("profile"))
 
         ok, msg = apply_subscription_days(db, user["id"], key_row.get("days"))
         if ok:
-            try:
-                execute(
-                    db,
-                    "UPDATE subscription_keys SET is_used = %s, used_by = %s, used_at = %s WHERE id = %s",
-                    (True, user["username"], datetime.utcnow().isoformat(), key_row["id"]),
-                )
-            except Exception as e:
-                print(f"[redeem_key update key error]: {e}")
-                traceback.print_exc()
-                _rollback_if_needed(db)
-                flash(f"Подписка выдана, но не удалось пометить ключ использованным: {e}", "warning")
-                db.close()
-                return redirect(url_for("profile"))
             flash(f"Ключ активирован! {msg}", "success")
         else:
+            # Не удалось выдать подписку — освобождаем ключ обратно.
+            execute(
+                db,
+                "UPDATE subscription_keys SET is_used = %s, used_by = NULL, used_at = NULL WHERE id = %s",
+                (False, key_row["id"]),
+            )
             flash(msg, "error")
 
         db.close()
@@ -1705,6 +1849,9 @@ def admin_panel():
         # на случай старой БД без таблиц конфигов/ачивок — не падаем 500, покажем пусто
         try:
             all_users = fetchall(db, "SELECT * FROM users ORDER BY id DESC")
+            for _u in all_users:  # хэши и пароли в шаблон не передаём
+                _u.pop("password_hash", None)
+                _u.pop("password_plain", None)
         except Exception as e:
             print(f"[admin_panel users fetch error]: {e}")
             traceback.print_exc()
@@ -1826,14 +1973,14 @@ def admin_create_user():
             flash("Пользователь с таким логином уже существует!", "error")
             return redirect(url_for("admin_panel"))
 
-        now = datetime.utcnow().isoformat()
+        now = _utcnow().isoformat()
         execute(
             db,
             """
-            INSERT INTO users (username, password_hash, password_plain, role, status, created_at, is_admin, plan)
-            VALUES (%s, %s, %s, %s, %s, %s, %s, %s)
+            INSERT INTO users (username, password_hash, role, status, created_at, is_admin, plan)
+            VALUES (%s, %s, %s, %s, %s, %s, %s)
             """,
-            (username, generate_password_hash(password), password, "User", "active", now, False, None),
+            (username, generate_password_hash(password), "User", "active", now, False, None),
         )
 
         new_user = fetchone(db, "SELECT id FROM users WHERE username = %s", (username,))
@@ -1901,7 +2048,7 @@ def admin_create_achievement():
         INSERT INTO achievements (code, name, description, image_url, unlock_feature, created_at)
         VALUES (%s, %s, %s, %s, %s, %s)
         """,
-        (code, name, description, image_url, unlock_feature, datetime.utcnow().isoformat()),
+        (code, name, description, image_url, unlock_feature, _utcnow().isoformat()),
     )
     db.close()
 
@@ -1929,32 +2076,32 @@ def admin_bulk_action():
         flash("Ошибка: Не выбран ни один пользователь!", "error")
         return redirect(url_for("admin_panel"))
 
+    if action in ("ban", "delete"):
+        ids = [i for i in ids if i != user.get("id")]  # себя не трогаем
+        if not ids:
+            flash("Нельзя применить это действие к самому себе!", "warning")
+            return redirect(url_for("admin_panel"))
+
     db = get_db()
+    ph = ",".join(["%s"] * len(ids))
 
     if action == "unban":
-        for target_id in ids:
-            execute(db, "UPDATE users SET status = 'active' WHERE id = %s", (target_id,))
+        execute(db, f"UPDATE users SET status = 'active' WHERE id IN ({ph})", tuple(ids))
         flash(f"Разблокировано пользователей: {len(ids)}!", "success")
 
     elif action == "ban":
-        for target_id in ids:
-            if target_id == user.get("id"):
-                continue
-            execute(db, "UPDATE users SET status = 'banned' WHERE id = %s", (target_id,))
+        execute(db, f"UPDATE users SET status = 'banned' WHERE id IN ({ph})", tuple(ids))
         flash(f"Заблокировано пользователей: {len(ids)}!", "success")
 
     elif action == "freeze":
-        for target_id in ids:
-            execute(db, "UPDATE users SET status = 'frozen' WHERE id = %s", (target_id,))
+        execute(db, f"UPDATE users SET status = 'frozen' WHERE id IN ({ph})", tuple(ids))
         flash(f"Заморожено пользователей: {len(ids)}!", "warning")
 
     elif action == "delete":
-        for target_id in ids:
-            if target_id == user.get("id"):
-                continue
-            ensure_user_config_downloads_table(db)
-            execute(db, "DELETE FROM user_config_downloads WHERE user_id = %s", (target_id,))
-            execute(db, "DELETE FROM users WHERE id = %s", (target_id,))
+        ensure_user_config_downloads_table(db)
+        execute(db, f"DELETE FROM user_config_downloads WHERE user_id IN ({ph})", tuple(ids))
+        execute(db, f"DELETE FROM user_achievements WHERE user_id IN ({ph})", tuple(ids))
+        execute(db, f"DELETE FROM users WHERE id IN ({ph})", tuple(ids))
         flash(f"Удалено пользователей: {len(ids)}!", "success")
 
     else:
@@ -2042,8 +2189,8 @@ def admin_action():
             else:
                 execute(
                     db,
-                    "UPDATE users SET password_hash = %s, password_plain = %s WHERE id = %s",
-                    (generate_password_hash(new_password), new_password, target_id),
+                    "UPDATE users SET password_hash = %s WHERE id = %s",
+                    (generate_password_hash(new_password), target_id),
                 )
                 flash("Пароль пользователя успешно изменён!", "success")
 
@@ -2054,6 +2201,7 @@ def admin_action():
             else:
                 ensure_user_config_downloads_table(db)
                 execute(db, "DELETE FROM user_config_downloads WHERE user_id = %s", (target_id,))
+                execute(db, "DELETE FROM user_achievements WHERE user_id = %s", (target_id,))
                 execute(db, "DELETE FROM users WHERE id = %s", (target_id,))
                 flash(f"Пользователь {target['username']} удалён навсегда!", "success")
                 if user.get("id") == target_id:
@@ -2151,7 +2299,7 @@ def admin_generate_key():
             db,
             "INSERT INTO subscription_keys (key_code, days, plan_name, is_used, created_at) "
             "VALUES (%s, %s, %s, %s, %s)",
-            (key_code, raw_days, plan_name, False, datetime.utcnow().isoformat()),
+            (key_code, raw_days, plan_name, False, _utcnow().isoformat()),
         )
         db.close()
 
@@ -2231,7 +2379,7 @@ def admin_create_promo():
         INSERT INTO promo_codes (code, discount_percent, funpay_url, is_active, uses_count, created_at)
         VALUES (%s, %s, %s, %s, %s, %s)
         """,
-        (code, percent, funpay_url, True, 0, datetime.utcnow().isoformat()),
+        (code, percent, funpay_url, True, 0, _utcnow().isoformat()),
     )
     db.close()
 
@@ -2403,7 +2551,7 @@ def admin_create_config():
             images[0],
             images[1],
             images[2],
-            datetime.utcnow().isoformat(),
+            _utcnow().isoformat(),
         ),
     )
     db.close()
@@ -2473,7 +2621,7 @@ def admin_grant_config():
     execute(
         db,
         "INSERT INTO user_config_downloads (user_id, config_id, granted_at) VALUES (%s, %s, %s)",
-        (target_id, config_id, datetime.utcnow().isoformat()),
+        (target_id, config_id, _utcnow().isoformat()),
     )
     db.close()
 
@@ -2647,7 +2795,7 @@ def admin_grant_achievement():
     execute(
         db,
         "INSERT INTO user_achievements (user_id, achievement_id, granted_at) VALUES (%s, %s, %s)",
-        (target_id, achievement_id, datetime.utcnow().isoformat()),
+        (target_id, achievement_id, _utcnow().isoformat()),
     )
     db.close()
 
@@ -2671,41 +2819,37 @@ def admin_revoke_achievement():
     return redirect(url_for("admin_panel"))
 
 
+def _is_api_request():
+    return (request.path or "").startswith("/api/")
+
+
 @app.errorhandler(500)
 def handle_500(e):
-    # Вместо белого экрана 500 — лог и понятный редирект с флешем
     print(f"[500 error]: {e}")
     traceback.print_exc()
-    try:
-        _rollback_if_needed(get_db())
-    except Exception:
-        pass
-    # если запрос шёл из профиля/админки — вернём туда с сообщением
-    flash(f"Внутренняя ошибка сервера: {e}. Попробуйте ещё раз.", "error")
-    try:
-        if request.path.startswith("/admin"):
-            return redirect(url_for("admin_panel"))
-        if request.path.startswith("/profile"):
-            return redirect(url_for("profile"))
-    except Exception:
-        pass
+    _rollback_current()
+    # Лаунчер/мод ждут JSON, а не редирект на HTML-страницу
+    if _is_api_request():
+        return jsonify({"success": False, "valid": False, "error": "Внутренняя ошибка сервера"}), 500
+    flash("Внутренняя ошибка сервера. Попробуйте ещё раз.", "error")
+    if request.path.startswith("/admin"):
+        return redirect(url_for("admin_panel"))
     return redirect(url_for("profile"))
 
 
 @app.errorhandler(Exception)
 def handle_exception(e):
-    # Ловим любые непойманные исключения (Flask в проде иначе вернёт 500 без лога)
-    # Не перехватываем HTTPException (404 и т.п.)
     from werkzeug.exceptions import HTTPException
     if isinstance(e, HTTPException):
+        if _is_api_request():
+            return jsonify({"success": False, "error": e.description}), e.code
         return e
     print(f"[unhandled exception {request.path}]: {e}")
     traceback.print_exc()
-    try:
-        _rollback_if_needed(get_db())
-    except Exception:
-        pass
-    flash(f"Внутренняя ошибка: {e}", "error")
+    _rollback_current()
+    if _is_api_request():
+        return jsonify({"success": False, "valid": False, "error": "Внутренняя ошибка сервера"}), 500
+    flash("Внутренняя ошибка. Попробуйте ещё раз.", "error")
     try:
         referrer = request.referrer or url_for("profile")
         return redirect(referrer)
@@ -2715,4 +2859,4 @@ def handle_exception(e):
 
 if __name__ == "__main__":
     port = int(os.environ.get("PORT", 5000))
-    app.run(host="0.0.0.0", port=port, debug=True)
+    app.run(host="0.0.0.0", port=port, debug=os.environ.get("FLASK_DEBUG") == "1")

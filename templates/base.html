@@ -29,9 +29,9 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&display=swap" rel="stylesheet">
-<script src="https://cdn.tailwindcss.com"></script>
-<script src="https://unpkg.com/lucide@latest"></script>
+<script src="{{ url_for('static', filename='js/lucide.min.js') }}?v={{ STATIC_VERSION }}" defer></script>
 <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}?v={{ STATIC_VERSION }}">
+<link rel="stylesheet" href="{{ url_for('static', filename='css/tailwind.css') }}?v={{ STATIC_VERSION }}">
 
 <!-- Структурированные данные JSON-LD -->
 <script type="application/ld+json">

@@ -1724,3 +1724,12 @@ body > footer { position:relative; z-index:1; }
   .cfg-admin-card { flex-wrap: wrap; }
   .cfg-actions { flex-direction: column; }
 }
+
+/* --- Производительность: меньше нагрузки на слабых устройствах --- */
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after { animation-duration: .01ms !important; animation-iteration-count: 1 !important; transition-duration: .01ms !important; }
+}
+@media (max-width: 768px) {
+  .dv-cosmos .dv-shooting, .bg-cosmos .c1, .bg-cosmos .c2, .bg-cosmos .c3 { display: none; }
+  .dv-cosmos .dv-nebula { animation: none; }
+}
