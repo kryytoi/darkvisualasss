@@ -1847,16 +1847,18 @@ def admin_panel():
         ensure_subscription_keys_table(db)
         ensure_promo_codes_table(db)
         # на случай старой БД без таблиц конфигов/ачивок — не падаем 500, покажем пусто
-        try:
-            all_users = fetchall(db, "SELECT * FROM users ORDER BY id DESC")
-            for _u in all_users:  # хэши и пароли в шаблон не передаём
-                _u.pop("password_hash", None)
-                _u.pop("password_plain", None)
-        except Exception as e:
-            print(f"[admin_panel users fetch error]: {e}")
-            traceback.print_exc()
-            _rollback_if_needed(db)
-            all_users = []
+        # Список пользователей не грузим: админ вводит ID и видит одного пользователя.
+        lookup_uid = (request.args.get("uid") or "").strip()
+        lookup_user = None
+        if lookup_uid.isdigit() and len(lookup_uid) < 10:
+            try:
+                lookup_user = fetchone(db, "SELECT * FROM users WHERE id = %s", (int(lookup_uid),))
+            except Exception as e:
+                print(f"[admin_panel lookup error]: {e}")
+                _rollback_if_needed(db)
+            if lookup_user:
+                lookup_user.pop("password_hash", None)
+                lookup_user.pop("password_plain", None)
         try:
             all_keys = fetchall(db, "SELECT * FROM subscription_keys ORDER BY id DESC")
         except Exception as e:
@@ -1931,7 +1933,8 @@ def admin_panel():
             pass
         return render_template(
             "admin.html",
-            users=all_users,
+            lookup_uid=lookup_uid,
+            lookup_user=lookup_user,
             keys=all_keys,
             current_user=user,
             achievements=all_achievements,
@@ -2233,7 +2236,8 @@ def admin_action():
         db.close()
     except Exception:
         pass
-    return redirect(url_for("admin_panel"))
+    # Возвращаемся к тому же пользователю (после удаления — к пустой форме)
+    return redirect(url_for("admin_panel", uid=None if action == "delete" else target_id))
 
 
 @app.route("/admin/generate_key", methods=["POST"])
@@ -2591,7 +2595,8 @@ def admin_grant_config():
     if not user or not user.get("is_admin"):
         return "Доступ запрещен", 403
 
-    target_id = request.form.get("user_id")
+    target_id = (request.form.get("user_id") or "").strip()
+    target_id = target_id if target_id.isdigit() and len(target_id) < 10 else None
     config_id = request.form.get("config_id")
 
     if not target_id or not config_id:
@@ -2766,7 +2771,8 @@ def admin_grant_achievement():
     if not user or not user.get("is_admin"):
         return "Доступ запрещен", 403
 
-    target_id = request.form.get("user_id")
+    target_id = (request.form.get("user_id") or "").strip()
+    target_id = target_id if target_id.isdigit() and len(target_id) < 10 else None
     achievement_id = request.form.get("achievement_id")
 
     if not target_id or not achievement_id:

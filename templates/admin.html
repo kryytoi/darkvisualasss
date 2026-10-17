@@ -167,12 +167,7 @@
     <div class="admin-panel">
         <h3>🏆 Выдать достижение игроку</h3>
         <form action="{{ url_for('admin_grant_achievement') }}" method="POST" class="admin-row">
-            <select name="user_id" required class="admin-select">
-                <option value="" disabled selected>Выберите игрока...</option>
-                {% for u in users %}
-                    <option value="{{ u.id }}">{{ u.username }} (ID: {{ u.id }})</option>
-                {% endfor %}
-            </select>
+            <input type="number" name="user_id" min="1" placeholder="ID игрока" required class="admin-input grow">
 
             <select name="achievement_id" required class="admin-select">
                 <option value="" disabled selected>Выберите достижение...</option>
@@ -374,12 +369,7 @@
             Администраторы могут скачивать всегда.
         </p>
         <form action="{{ url_for('admin_grant_config') }}" method="POST" class="admin-row">
-            <select name="user_id" required class="admin-select">
-                <option value="" disabled selected>Выберите игрока...</option>
-                {% for u in users %}
-                    <option value="{{ u.id }}">{{ u.username }} (ID: {{ u.id }})</option>
-                {% endfor %}
-            </select>
+            <input type="number" name="user_id" min="1" placeholder="ID игрока" required class="admin-input grow">
 
             <select name="config_id" required class="admin-select">
                 <option value="" disabled selected>Выберите конфиг...</option>
@@ -427,62 +417,23 @@
         {% endif %}
     </div>
 
-    <!-- ===== Управление пользователями ===== -->
+    <!-- ===== Управление пользователем по ID ===== -->
     <div class="admin-panel spotlight-card">
-        <div class="user-mgmt-head">
-            <div>
-                <h3>🛡️ Управление пользователями ({{ users|length }})</h3>
-                <p class="admin-note" style="margin:0 0 16px 0;">
-                    Бан, заморозка, выдача подписки, сброс HWID, смена пароля и права администратора — всё в пару кликов.
-                </p>
-            </div>
-            <button type="button" id="userListToggle" class="admin-btn admin-btn-neutral user-list-toggle" onclick="toggleUserList()">
-                <span class="user-list-toggle-icon">▼</span>
-                <span class="user-list-toggle-text">Свернуть список</span>
-            </button>
-        </div>
+        <h3>🛡️ Управление пользователем по ID</h3>
+        <p class="admin-note" style="margin:0 0 16px 0;">
+            Введите ID — появится ник и действия: бан, заморозка, подписка, сброс HWID, смена пароля, права администратора.
+        </p>
+        <form method="GET" action="{{ url_for('admin_panel') }}" class="admin-row">
+            <input type="number" name="uid" min="1" placeholder="ID пользователя" required class="admin-input grow" value="{{ lookup_uid }}">
+            <button type="submit" class="admin-btn admin-btn-primary">🔍 Найти</button>
+        </form>
 
-        <div id="userMgmtControls" class="user-list-collapsible">
-
-        <!-- Отдельная форма для массовых действий (не оборачивает карточки, т.к. внутри карточек уже есть свои <form>) -->
-        <form id="bulk-users-form" action="{{ url_for('admin_bulk_action') }}" method="POST" style="display:none;"></form>
-
-        <!-- Панель поиска и фильтров -->
-        <div class="user-mgmt-toolbar">
-            <div class="user-search">
-                <span class="user-search-icon">🔍</span>
-                <input type="text" id="userSearchInput" placeholder="Поиск по логину или ID..." oninput="filterUserCards()">
-            </div>
-            <div class="user-filters" id="userFilters">
-                <button type="button" class="user-filter active" data-filter="all" onclick="setUserFilter(this)">Все</button>
-                <button type="button" class="user-filter" data-filter="active" onclick="setUserFilter(this)">Активные</button>
-                <button type="button" class="user-filter" data-filter="banned" onclick="setUserFilter(this)">Забаненные</button>
-                <button type="button" class="user-filter" data-filter="frozen" onclick="setUserFilter(this)">Замороженные</button>
-            </div>
-        </div>
-
-        <!-- Массовые действия -->
-        <div class="user-bulk-bar">
-            <label class="user-bulk-selectall">
-                <input type="checkbox" id="bulk-select-all" onchange="toggleAllUserCheckboxes(this)">
-                <span>Выбрать все видимые</span>
-            </label>
-            <span class="user-bulk-count">Выбрано: <span id="bulk-selected-count">0</span></span>
-            <div class="admin-actions" style="margin-left:auto;">
-                <button type="button" class="admin-btn admin-btn-success xs" onclick="submitBulkAction('unban', 'разбанить');">Разбанить</button>
-                <button type="button" class="admin-btn admin-btn-warn xs" onclick="submitBulkAction('freeze', 'заморозить');">Заморозить</button>
-                <button type="button" class="admin-btn admin-btn-danger xs" onclick="submitBulkAction('ban', 'забанить');">Забанить</button>
-                <button type="button" class="admin-btn admin-btn-danger xs" onclick="submitBulkAction('delete', 'удалить НАВСЕГДА');">🗑 Удалить</button>
-            </div>
-        </div>
-
-        <!-- Карточки пользователей -->
-        <div class="user-cards" id="userCards">
-            {% for u in users %}
+        {% if lookup_user %}
+        <div class="user-cards" id="userCards" style="margin-top:16px;">
+            {% set u = lookup_user %}
             {% set status = u.status if u.status in ('banned', 'frozen') else 'active' %}
             <div class="user-card status-{{ status }} {% if u.is_admin %}is-admin{% endif %}" data-status="{{ status }}" data-search="{{ u.username }} {{ u.id }}">
                 <div class="user-card-top">
-                    <input type="checkbox" class="bulk-user-checkbox" value="{{ u.id }}" onchange="updateBulkSelectedCount()" title="Выбрать для массовых действий">
                     <div class="user-avatar {% if u.avatar_url %}has-photo{% endif %}">{{ u.username[:2]|upper if u.username else '?' }}</div>
                     <div class="user-ident">
                         <div class="user-name-row">
@@ -602,109 +553,15 @@
                     </form>
                 </div>
             </div>
-            {% endfor %}
         </div>
-        <p class="admin-empty user-empty" id="userEmptyMsg" style="display:none;">😕 Никто не найден. Попробуй другой фильтр или поисковый запрос.</p>
-
-        </div><!-- /userMgmtControls -->
+        {% elif lookup_uid %}
+        <p class="admin-empty" style="margin-top:16px;">😕 Пользователь с ID {{ lookup_uid }} не найден.</p>
+        {% endif %}
     </div>
 
 </div>
 
 <script>
-var currentUserFilter = 'all';
-
-function visibleUserCards() {
-    return Array.prototype.filter.call(
-        document.querySelectorAll('#userCards .user-card'),
-        function (card) { return card.style.display !== 'none'; }
-    );
-}
-
-function visibleCheckboxes() {
-    return Array.prototype.filter.call(
-        document.querySelectorAll('#userCards .bulk-user-checkbox'),
-        function (cb) { return cb.closest('.user-card').style.display !== 'none'; }
-    );
-}
-
-function updateBulkSelectedCount() {
-    var visible = visibleCheckboxes();
-    var checked = visible.filter(function (cb) { return cb.checked; }).length;
-    var el = document.getElementById('bulk-selected-count');
-    if (el) el.textContent = checked;
-    var selectAll = document.getElementById('bulk-select-all');
-    if (selectAll) selectAll.checked = visible.length > 0 && checked === visible.length;
-
-    var cards = visibleUserCards();
-    var empty = document.getElementById('userEmptyMsg');
-    if (empty) empty.style.display = cards.length ? 'none' : 'block';
-}
-
-function toggleAllUserCheckboxes(source) {
-    visibleCheckboxes().forEach(function (cb) {
-        cb.checked = source.checked;
-    });
-    updateBulkSelectedCount();
-}
-
-function filterUserCards() {
-    var query = (document.getElementById('userSearchInput').value || '').trim().toLowerCase();
-    var visibleCount = 0;
-
-    document.querySelectorAll('#userCards .user-card').forEach(function (card) {
-        var haystack = (card.getAttribute('data-search') || '').toLowerCase();
-        var matchQuery = !query || haystack.indexOf(query) !== -1;
-        var matchFilter = currentUserFilter === 'all' || card.getAttribute('data-status') === currentUserFilter;
-        var show = matchQuery && matchFilter;
-        card.style.display = show ? '' : 'none';
-        if (show) visibleCount++;
-    });
-
-    var empty = document.getElementById('userEmptyMsg');
-    if (empty) empty.style.display = visibleCount ? 'none' : 'block';
-    updateBulkSelectedCount();
-}
-
-function setUserFilter(btn) {
-    document.querySelectorAll('#userFilters .user-filter').forEach(function (b) {
-        b.classList.remove('active');
-    });
-    btn.classList.add('active');
-    currentUserFilter = btn.getAttribute('data-filter');
-    filterUserCards();
-}
-
-function submitBulkAction(action, actionText) {
-    var checked = visibleCheckboxes().filter(function (cb) { return cb.checked; });
-    if (checked.length === 0) {
-        alert('Выберите хотя бы одного пользователя!');
-        return;
-    }
-    if (!confirm('Вы уверены, что хотите ' + actionText + ' пользователей: ' + checked.length + '?')) {
-        return;
-    }
-
-    var form = document.getElementById('bulk-users-form');
-    form.querySelectorAll('input').forEach(function (el) { el.remove(); });
-
-    checked.forEach(function (cb) {
-        var input = document.createElement('input');
-        input.type = 'hidden';
-        input.name = 'user_ids';
-        input.value = cb.value;
-        form.appendChild(input);
-    });
-
-    var actionInput = document.createElement('input');
-    actionInput.type = 'hidden';
-    actionInput.name = 'action';
-    actionInput.value = action;
-    form.appendChild(actionInput);
-
-    form.submit();
-}
-
 function copyUserId(chip) {
     var id = chip.getAttribute('data-copy');
     function done() {
@@ -735,40 +592,5 @@ function fallbackCopy(text) {
     try { document.execCommand('copy'); } catch (e) {}
     document.body.removeChild(ta);
 }
-
-// ===== Сворачивание списка пользователей (запоминается в localStorage) =====
-function toggleUserList() {
-    var controls = document.getElementById('userMgmtControls');
-    var btn = document.getElementById('userListToggle');
-    if (!controls || !btn) return;
-    var collapsed = controls.classList.toggle('collapsed');
-    btn.classList.toggle('collapsed', collapsed);
-    var textEl = btn.querySelector('.user-list-toggle-text');
-    var iconEl = btn.querySelector('.user-list-toggle-icon');
-    if (textEl) textEl.textContent = collapsed ? 'Показать список' : 'Свернуть список';
-    if (iconEl) iconEl.textContent = collapsed ? '▲' : '▼';
-    try { localStorage.setItem('dv-admin-users-collapsed', collapsed ? '1' : '0'); } catch (e) {}
-}
-
-(function () {
-    var saved = null;
-    try { saved = localStorage.getItem('dv-admin-users-collapsed'); } catch (e) {}
-    // По умолчанию список свёрнут. Раскрытое состояние сохраняется только
-    // после явного выбора «Показать список».
-    var controls = document.getElementById('userMgmtControls');
-    var btn = document.getElementById('userListToggle');
-    if (controls && btn && saved === '0') {
-        controls.classList.remove('collapsed');
-        btn.classList.remove('collapsed');
-        btn.querySelector('.user-list-toggle-text').textContent = 'Свернуть список';
-        btn.querySelector('.user-list-toggle-icon').textContent = '▼';
-    } else if (controls && btn) {
-        controls.classList.add('collapsed');
-        btn.classList.add('collapsed');
-        btn.querySelector('.user-list-toggle-text').textContent = 'Показать список';
-        btn.querySelector('.user-list-toggle-icon').textContent = '▲';
-        try { localStorage.setItem('dv-admin-users-collapsed', '1'); } catch (e) {}
-    }
-})();
 </script>
 {% endblock %}
